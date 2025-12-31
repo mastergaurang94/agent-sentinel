@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -69,12 +69,12 @@ func extractModelFromPath(path string) string {
 	return ""
 }
 
-func extractPromptFromGeminiContents(data map[string]interface{}) string {
+func extractPromptFromGeminiContents(data map[string]any) string {
 	// Gemini uses: {"contents": [{"parts": [{"text": "..."}]}]}
-	if contents, ok := data["contents"].([]interface{}); ok && len(contents) > 0 {
-		if firstContent, ok := contents[0].(map[string]interface{}); ok {
-			if parts, ok := firstContent["parts"].([]interface{}); ok && len(parts) > 0 {
-				if firstPart, ok := parts[0].(map[string]interface{}); ok {
+	if contents, ok := data["contents"].([]any); ok && len(contents) > 0 {
+		if firstContent, ok := contents[0].(map[string]any); ok {
+			if parts, ok := firstContent["parts"].([]any); ok && len(parts) > 0 {
+				if firstPart, ok := parts[0].(map[string]any); ok {
 					if text, ok := firstPart["text"].(string); ok {
 						return text
 					}
@@ -85,12 +85,40 @@ func extractPromptFromGeminiContents(data map[string]interface{}) string {
 	return ""
 }
 
-func extractPromptFromOpenAIMessages(data map[string]interface{}) string {
+func configureLogging() {
+	// Configure structured logging with JSON output for observability
+	// Compatible with Datadog, Grafana, and other log aggregation systems
+	logLevel := slog.LevelInfo
+	if levelStr := os.Getenv("LOG_LEVEL"); levelStr != "" {
+		switch strings.ToLower(levelStr) {
+		case "debug":
+			logLevel = slog.LevelDebug
+		case "info":
+			logLevel = slog.LevelInfo
+		case "warn":
+			logLevel = slog.LevelWarn
+		case "error":
+			logLevel = slog.LevelError
+		}
+	}
+
+	opts := &slog.HandlerOptions{
+		Level:     logLevel,
+		AddSource: false,
+	}
+
+	// Use JSON handler for structured logging
+	jsonHandler := slog.NewJSONHandler(os.Stdout, opts)
+	logger := slog.New(jsonHandler)
+	slog.SetDefault(logger)
+}
+
+func extractPromptFromOpenAIMessages(data map[string]any) string {
 	// OpenAI uses: {"messages": [{"role": "user", "content": "..."}]}
-	if messages, ok := data["messages"].([]interface{}); ok {
-		msgMaps := make([]map[string]interface{}, 0, len(messages))
+	if messages, ok := data["messages"].([]any); ok {
+		msgMaps := make([]map[string]any, 0, len(messages))
 		for _, m := range messages {
-			if msgMap, ok := m.(map[string]interface{}); ok {
+			if msgMap, ok := m.(map[string]any); ok {
 				msgMaps = append(msgMaps, msgMap)
 			}
 		}
@@ -128,7 +156,11 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		// Read the request body
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			log.Printf("Error reading request body: %v", err)
+			slog.Error("Failed to read request body",
+				"error", err,
+				"method", r.Method,
+				"path", r.URL.Path,
+			)
 			http.Error(w, "Error reading request body", http.StatusBadRequest)
 			return
 		}
@@ -138,7 +170,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 		// Try to parse as JSON to extract prompt
 		var prompt string
-		var data map[string]interface{}
+		var data map[string]any
 		if err := json.Unmarshal(body, &data); err == nil {
 			// Try to get model from body if not found in path
 			if model == "" {
@@ -166,7 +198,12 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 		// Log if we have a model (from path or body)
 		if model != "" {
-			log.Printf("Model: %s, Prompt: %s", model, prompt)
+			slog.Info("LLM request",
+				"model", model,
+				"prompt", prompt,
+				"method", r.Method,
+				"path", r.URL.Path,
+			)
 		}
 
 		next.ServeHTTP(w, r)
@@ -174,6 +211,9 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
+	// Configure structured logging first
+	configureLogging()
+
 	// Load .env file if it exists (ignore error if file doesn't exist)
 	_ = loadEnvFile(".env")
 
@@ -190,26 +230,36 @@ func main() {
 	if targetAPI == "openai" || (targetAPI == "" && openAIKey != "" && geminiKey == "") {
 		// Use OpenAI
 		if openAIKey == "" {
-			log.Fatal("OPENAI_API_KEY environment variable is not set")
+			slog.Error("OPENAI_API_KEY environment variable is not set")
+			os.Exit(1)
 		}
 		apiKey = openAIKey
 		apiName = "OpenAI"
 		var err error
 		targetURL, err = url.Parse("https://api.openai.com")
 		if err != nil {
-			log.Fatalf("Error parsing target URL: %v", err)
+			slog.Error("Failed to parse target URL",
+				"error", err,
+				"url", "https://api.openai.com",
+			)
+			os.Exit(1)
 		}
 	} else {
 		// Default to Gemini
 		if geminiKey == "" {
-			log.Fatal("GEMINI_API_KEY environment variable is not set")
+			slog.Error("GEMINI_API_KEY environment variable is not set")
+			os.Exit(1)
 		}
 		apiKey = geminiKey
 		apiName = "Gemini"
 		var err error
 		targetURL, err = url.Parse("https://generativelanguage.googleapis.com")
 		if err != nil {
-			log.Fatalf("Error parsing target URL: %v", err)
+			slog.Error("Failed to parse target URL",
+				"error", err,
+				"url", "https://generativelanguage.googleapis.com",
+			)
+			os.Exit(1)
 		}
 	}
 
@@ -238,10 +288,17 @@ func main() {
 
 	// Start server
 	port := ":8080"
-	log.Printf("Agent Sentinel proxy listening on port %s", port)
-	log.Printf("Forwarding requests to %s (%s)", targetURL.String(), apiName)
+	slog.Info("Agent Sentinel proxy started",
+		"port", port,
+		"target_api", apiName,
+		"target_url", targetURL.String(),
+	)
 
 	if err := http.ListenAndServe(port, handler); err != nil {
-		log.Fatalf("Error starting server: %v", err)
+		slog.Error("Server failed to start",
+			"error", err,
+			"port", port,
+		)
+		os.Exit(1)
 	}
 }

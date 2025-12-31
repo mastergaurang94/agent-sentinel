@@ -6,6 +6,7 @@ A high-performance reverse proxy for LLM agents that forwards requests to Google
 
 - Reverse proxy for Gemini API and OpenAI API
 - Automatic API key injection
+- Structured JSON logging (compatible with Datadog, Grafana, etc.)
 - Request logging (model and prompt)
 - Supports multiple request formats
 
@@ -30,7 +31,7 @@ A high-performance reverse proxy for LLM agents that forwards requests to Google
    go run main.go
    ```
 
-The proxy listens on port 8080 and automatically detects which API to use based on available keys.
+The proxy listens on port 8080 and automatically detects which API to use based on available keys. Logs are output in JSON format for enterprise observability tools.
 
 ## Usage
 
