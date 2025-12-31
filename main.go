@@ -1,15 +1,47 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strings"
 )
+
+func loadEnvFile(filename string) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// Parse KEY=VALUE format
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			// Remove quotes if present
+			value = strings.Trim(value, `"'`)
+			// Only set if not already in environment
+			if os.Getenv(key) == "" {
+				os.Setenv(key, value)
+			}
+		}
+	}
+	return scanner.Err()
+}
 
 func extractPrompt(messages []map[string]interface{}) string {
 	for _, msg := range messages {
@@ -45,7 +77,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Restore the body for the proxy
-		r.Body = io.NopCloser(io.BytesReader(body))
+		r.Body = io.NopCloser(bytes.NewReader(body))
 
 		// Try to parse as JSON to extract model and prompt
 		var data map[string]interface{}
@@ -77,14 +109,17 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	// Get OpenAI API key from environment variable
-	apiKey := os.Getenv("OPENAI_API_KEY")
+	// Load .env file if it exists (ignore error if file doesn't exist)
+	_ = loadEnvFile(".env")
+
+	// Get GEMINI API key from environment variable
+	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
-		log.Fatal("OPENAI_API_KEY environment variable is not set")
+		log.Fatal("GEMINI_API_KEY environment variable is not set")
 	}
 
 	// Parse the target URL
-	targetURL, err := url.Parse("https://api.openai.com")
+	targetURL, err := url.Parse("https://generativelanguage.googleapis.com")
 	if err != nil {
 		log.Fatalf("Error parsing target URL: %v", err)
 	}
@@ -92,11 +127,14 @@ func main() {
 	// Create reverse proxy
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
-	// Modify the request to add the API key
+	// Modify the request to add the API key as a query parameter
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		originalDirector(req)
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+		// Gemini API uses the key as a query parameter
+		q := req.URL.Query()
+		q.Set("key", apiKey)
+		req.URL.RawQuery = q.Encode()
 		req.Host = targetURL.Host
 	}
 
@@ -107,9 +145,8 @@ func main() {
 	port := ":8080"
 	log.Printf("Agent Sentinel proxy listening on port %s", port)
 	log.Printf("Forwarding requests to %s", targetURL.String())
-	
+
 	if err := http.ListenAndServe(port, handler); err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}
 }
-
