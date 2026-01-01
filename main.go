@@ -113,29 +113,37 @@ func configureLogging() {
 	slog.SetDefault(logger)
 }
 
-func extractPromptFromOpenAIMessages(data map[string]any) string {
-	// OpenAI uses: {"messages": [{"role": "user", "content": "..."}]}
-	if messages, ok := data["messages"].([]any); ok {
-		msgMaps := make([]map[string]any, 0, len(messages))
-		for _, m := range messages {
-			if msgMap, ok := m.(map[string]any); ok {
-				msgMaps = append(msgMaps, msgMap)
-			}
+func extractPromptFromOpenAIResponses(data map[string]any) string {
+	// OpenAI Responses API uses: {"input": "..."} or {"input": [{"role": "user", "content": "..."}]}
+	if input, ok := data["input"]; ok {
+		// Case 1: input is a string (Response API format)
+		if inputStr, ok := input.(string); ok {
+			return inputStr
 		}
 
-		// Look for user message first
-		for _, msg := range msgMaps {
-			if role, ok := msg["role"].(string); ok && role == "user" {
-				if content, ok := msg["content"].(string); ok {
-					return content
+		// Case 2: input is an array of messages (chat completion format)
+		if messages, ok := input.([]any); ok {
+			msgMaps := make([]map[string]any, 0, len(messages))
+			for _, m := range messages {
+				if msgMap, ok := m.(map[string]any); ok {
+					msgMaps = append(msgMaps, msgMap)
 				}
 			}
-		}
 
-		// Fallback: get first message content if no user message found
-		if len(msgMaps) > 0 {
-			if content, ok := msgMaps[0]["content"].(string); ok {
-				return content
+			// Look for user message first
+			for _, msg := range msgMaps {
+				if role, ok := msg["role"].(string); ok && role == "user" {
+					if content, ok := msg["content"].(string); ok {
+						return content
+					}
+				}
+			}
+
+			// Fallback: get first message content if no user message found
+			if len(msgMaps) > 0 {
+				if content, ok := msgMaps[0]["content"].(string); ok {
+					return content
+				}
 			}
 		}
 	}
@@ -183,16 +191,9 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			// 1. Gemini format (contents array)
 			prompt = extractPromptFromGeminiContents(data)
 
-			// 2. OpenAI chat completion format (messages array)
+			// 2. OpenAI Responses API format (input field)
 			if prompt == "" {
-				prompt = extractPromptFromOpenAIMessages(data)
-			}
-
-			// 3. Completion format (prompt field)
-			if prompt == "" {
-				if p, ok := data["prompt"].(string); ok {
-					prompt = p
-				}
+				prompt = extractPromptFromOpenAIResponses(data)
 			}
 		}
 
