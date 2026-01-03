@@ -1,0 +1,40 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: agent-sentinel-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  agent-sentinel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agent-sentinel
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TARGET_API=${TARGET_API:-gemini}
+      - DEFAULT_SPEND_LIMIT=${DEFAULT_SPEND_LIMIT:-100.00}
+      - RATE_LIMIT_HEADER=${RATE_LIMIT_HEADER:-X-Tenant-ID}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+

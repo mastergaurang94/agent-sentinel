@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+agent-sentinel
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Test files
+*_test.go
+test.sh
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+

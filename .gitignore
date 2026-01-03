@@ -32,3 +32,6 @@ go.work
 agent-sentinel
 dist/
 
+# Docker
+.docker/
+

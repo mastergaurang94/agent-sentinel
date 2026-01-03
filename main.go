@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	"agent-sentinel/ratelimit"
 )
 
 func loadEnvFile(filename string) error {
@@ -217,6 +219,14 @@ func main() {
 
 	// Load .env file if it exists (ignore error if file doesn't exist)
 	_ = loadEnvFile(".env")
+
+	// Initialize Redis client for rate limiting (fail-open if unavailable)
+	redisClient := ratelimit.NewRedisClient()
+	if redisClient != nil {
+		slog.Info("Rate limiting enabled via Redis")
+	} else {
+		slog.Info("Rate limiting disabled (Redis not available)")
+	}
 
 	// Determine which API to use
 	targetAPI := os.Getenv("TARGET_API")
