@@ -28,6 +28,7 @@ services:
       - DEFAULT_SPEND_LIMIT=${DEFAULT_SPEND_LIMIT:-100.00}
       - RATE_LIMIT_HEADER=${RATE_LIMIT_HEADER:-X-Tenant-ID}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     env_file:
       - .env
     depends_on:

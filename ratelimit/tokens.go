@@ -27,7 +27,7 @@ func CountTokens(text, model string) int {
 			slog.Warn("Failed to load tokenizer, using character estimation",
 				"error", err,
 			)
-			return estimateTokensByChars(text)
+			return estimateInputTokensByChars(text)
 		}
 	}
 
@@ -36,7 +36,7 @@ func CountTokens(text, model string) int {
 		slog.Warn("Failed to encode text, using character estimation",
 			"error", err,
 		)
-		return estimateTokensByChars(text)
+		return estimateInputTokensByChars(text)
 	}
 
 	return len(ids)
@@ -79,8 +79,56 @@ func getEncoderForModel(model string) (tokenizer.Codec, error) {
 	}
 }
 
-// estimateTokensByChars provides a rough token estimate based on character count
-// Uses ~4 characters per token as a common approximation for English text
-func estimateTokensByChars(text string) int {
+// estimateInputTokensByChars provides a rough input token estimate based on character count.
+// Uses ~4 characters per token as a common approximation for English text.
+// This is a fallback when tiktoken encoding fails.
+func estimateInputTokensByChars(text string) int {
 	return (len(text) + 3) / 4 // +3 for rounding up
+}
+
+const (
+	OutputMultiplier  = 10   // Assume output is 10x input when unknown
+	MinOutputEstimate = 100  // Minimum output tokens to estimate
+	MaxOutputEstimate = 4096 // Cap estimate to avoid over-blocking
+)
+
+// EstimateOutputTokens estimates the number of output tokens for cost calculation.
+// Uses maxFromRequest if specified, otherwise applies a multiplier with floor/ceiling.
+func EstimateOutputTokens(inputTokens, maxFromRequest int) int {
+	if maxFromRequest > 0 {
+		if maxFromRequest > MaxOutputEstimate {
+			return MaxOutputEstimate
+		}
+		return maxFromRequest
+	}
+
+	estimated := inputTokens * OutputMultiplier
+	if estimated < MinOutputEstimate {
+		return MinOutputEstimate
+	}
+	if estimated > MaxOutputEstimate {
+		return MaxOutputEstimate
+	}
+	return estimated
+}
+
+// ExtractMaxOutputTokens extracts the max output tokens from an API request body.
+// Supports both OpenAI (max_tokens, max_completion_tokens) and Gemini (generationConfig.maxOutputTokens).
+func ExtractMaxOutputTokens(data map[string]any) int {
+	// OpenAI: max_tokens or max_completion_tokens
+	if v, ok := data["max_tokens"].(float64); ok && v > 0 {
+		return int(v)
+	}
+	if v, ok := data["max_completion_tokens"].(float64); ok && v > 0 {
+		return int(v)
+	}
+
+	// Gemini: generationConfig.maxOutputTokens
+	if config, ok := data["generationConfig"].(map[string]any); ok {
+		if v, ok := config["maxOutputTokens"].(float64); ok && v > 0 {
+			return int(v)
+		}
+	}
+
+	return 0
 }

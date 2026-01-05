@@ -10,6 +10,20 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+func toFloat64(v any) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int64:
+		return float64(n)
+	case string:
+		f, _ := strconv.ParseFloat(n, 64)
+		return f
+	default:
+		return 0
+	}
+}
+
 // RateLimiter handles rate limiting using Redis with minute buckets
 type RateLimiter struct {
 	client       *RedisClient
@@ -96,7 +110,7 @@ for i = 1, #allBuckets, 2 do
   end
 end
 
-return {allowed and 1 or 0, currentSpend, limit, remaining}
+return {allowed and 1 or 0, tostring(currentSpend), tostring(limit), tostring(remaining)}
 `
 
 // adjustCostLUA is the LUA script for atomic cost adjustment
@@ -158,11 +172,11 @@ func (r *RateLimiter) CheckLimitAndIncrement(ctx context.Context, tenantID strin
 	}
 
 	// Parse result from LUA script
-	results := result.([]interface{})
+	results := result.([]any)
 	allowed := results[0].(int64) == 1
-	currentSpend := results[1].(float64)
-	limit := results[2].(float64)
-	remaining := results[3].(float64)
+	currentSpend := toFloat64(results[1])
+	limit := toFloat64(results[2])
+	remaining := toFloat64(results[3])
 
 	return &CheckLimitResult{
 		Allowed:      allowed,
