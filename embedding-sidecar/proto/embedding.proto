@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package embedding;
+
+option go_package = "embedding-sidecar/proto;proto";
+
+service EmbeddingService {
+  rpc CheckLoop (CheckLoopRequest) returns (CheckLoopResponse);
+}
+
+message CheckLoopRequest {
+  string tenant_id = 1;
+  string prompt = 2;
+}
+
+message CheckLoopResponse {
+  bool loop_detected = 1;
+  double max_similarity = 2;
+  string similar_prompt = 3;
+}
+
+

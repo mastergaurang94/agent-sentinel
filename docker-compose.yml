@@ -13,6 +13,39 @@ services:
       timeout: 3s
       retries: 5
 
+  redis-embedding:
+    image: redis/redis-stack:latest
+    container_name: embedding-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-embedding-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  embedding-sidecar:
+    build:
+      context: ./embedding-sidecar
+      dockerfile: Dockerfile
+    container_name: embedding-sidecar
+    environment:
+      - REDIS_URL=redis://redis-embedding:6379
+      - UDS_PATH=/sockets/embedding-sidecar.sock
+      - LOOP_SIMILARITY_THRESHOLD=${LOOP_SIMILARITY_THRESHOLD:-0.95}
+      - LOOP_HISTORY_SIZE=${LOOP_HISTORY_SIZE:-5}
+      - LOOP_EMBEDDING_TTL=${LOOP_EMBEDDING_TTL:-3600}
+      - LOOP_EMBEDDING_MODEL_PATH=/app/models/all-MiniLM-L6-v2.onnx
+      - LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS=${LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS:-50}
+    volumes:
+      - sockets:/sockets
+    depends_on:
+      redis-embedding:
+        condition: service_started
+    restart: unless-stopped
+
   agent-sentinel:
     build:
       context: .
@@ -29,13 +62,20 @@ services:
       - RATE_LIMIT_HEADER=${RATE_LIMIT_HEADER:-X-Tenant-ID}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - LOOP_EMBEDDING_SIDECAR_UDS=/sockets/embedding-sidecar.sock
     env_file:
       - .env
     depends_on:
       redis:
         condition: service_started
+      embedding-sidecar:
+        condition: service_started
     restart: unless-stopped
+    volumes:
+      - sockets:/sockets
 
 volumes:
   redis-data:
+  redis-embedding-data:
+  sockets:
 
