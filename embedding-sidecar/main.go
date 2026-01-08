@@ -19,7 +19,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
-	store, err := NewVectorStore(cfg.RedisURL, cfg.EmbeddingTTL)
+	store, err := NewVectorStore(cfg.RedisURL, cfg.EmbeddingTTL, cfg.HistorySize)
 	if err != nil {
 		slog.Error("failed to init redis", "error", err)
 		os.Exit(1)

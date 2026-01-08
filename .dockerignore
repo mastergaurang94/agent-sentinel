@@ -30,6 +30,7 @@ docs/
 # Test files
 *_test.go
 test.sh
+embedding-sidecar/models/*.onnx
 
 # Docker
 Dockerfile

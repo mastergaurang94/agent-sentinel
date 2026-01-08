@@ -3,8 +3,6 @@ package main
 import (
 	"errors"
 	"sync"
-
-	"github.com/yalue/onnxruntime_go"
 )
 
 type Embedding interface {

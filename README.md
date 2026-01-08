@@ -26,6 +26,8 @@ A high-performance reverse proxy for LLM agents that forwards requests to Google
    export TARGET_API=gemini  # or "openai"
    ```
 
+3. Embedding model: Ensure the ONNX model is available. See `embedding-sidecar/models/README.md` for how (Docker / local).
+
 3. Run the proxy:
    ```bash
    go run main.go

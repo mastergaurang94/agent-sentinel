@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"math"
 	"sort"
 	"strconv"
@@ -21,6 +22,7 @@ const (
 type VectorStore struct {
 	client redis.UniversalClient
 	ttl    time.Duration
+	keep   int
 }
 
 type EmbeddingRecord struct {
@@ -30,13 +32,13 @@ type EmbeddingRecord struct {
 	Key        string
 }
 
-func NewVectorStore(redisURL string, ttl time.Duration) (*VectorStore, error) {
+func NewVectorStore(redisURL string, ttl time.Duration, keep int) (*VectorStore, error) {
 	opts, err := redis.ParseURL(redisURL)
 	if err != nil {
 		return nil, err
 	}
 	client := redis.NewClient(opts)
-	return &VectorStore{client: client, ttl: ttl}, nil
+	return &VectorStore{client: client, ttl: ttl, keep: keep}, nil
 }
 
 func (s *VectorStore) EnsureIndex(ctx context.Context) error {
@@ -45,7 +47,7 @@ func (s *VectorStore) EnsureIndex(ctx context.Context) error {
 		return nil
 	}
 
-	args := []interface{}{
+	args := []any{
 		"FT.CREATE", redisIndexName,
 		"ON", "HASH",
 		"PREFIX", 1, redisKeyPrefix,
@@ -68,7 +70,7 @@ func (s *VectorStore) StoreEmbedding(ctx context.Context, tenantID, prompt strin
 	key := fmt.Sprintf("%s%s:%d", redisKeyPrefix, tenantID, time.Now().UnixNano())
 	vecBlob := float32SliceToBytes(embedding)
 
-	fields := []interface{}{
+	fields := []any{
 		"tenant_id", tenantID,
 		"prompt", prompt,
 		"vec", vecBlob,
@@ -82,7 +84,9 @@ func (s *VectorStore) StoreEmbedding(ctx context.Context, tenantID, prompt strin
 	}
 
 	// Optional pruning to keep recent embeddings small per tenant.
-	go s.pruneOldEmbeddings(context.Background(), tenantID, 5)
+	if s.keep > 0 {
+		go s.pruneOldEmbeddings(context.Background(), tenantID, s.keep)
+	}
 	return nil
 }
 
@@ -93,6 +97,7 @@ func (s *VectorStore) pruneOldEmbeddings(ctx context.Context, tenantID string, k
 		keys = append(keys, iter.Val())
 	}
 	if err := iter.Err(); err != nil {
+		slog.Warn("prune scan failed", "tenant", tenantID, "error", err)
 		return
 	}
 	if len(keys) <= keep {
@@ -100,7 +105,9 @@ func (s *VectorStore) pruneOldEmbeddings(ctx context.Context, tenantID string, k
 	}
 	sort.Strings(keys)
 	toDelete := keys[:len(keys)-keep]
-	_ = s.client.Del(ctx, toDelete...).Err()
+	if err := s.client.Del(ctx, toDelete...).Err(); err != nil {
+		slog.Warn("prune delete failed", "tenant", tenantID, "error", err, "count", len(toDelete))
+	}
 }
 
 func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID string, queryEmbedding []float32, limit int) ([]EmbeddingRecord, error) {
@@ -113,7 +120,7 @@ func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID stri
 	// Using Redis VSS KNN query with tenant filter.
 	query := fmt.Sprintf("@tenant_id:{%s}=>[KNN %d @vec $vec AS score]", tenantID, limit)
 
-	args := []interface{}{
+	args := []any{
 		"FT.SEARCH", redisIndexName,
 		query,
 		"PARAMS", 2, "vec", vecBlob,
@@ -128,7 +135,7 @@ func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID stri
 		return nil, err
 	}
 
-	arr, ok := raw.([]interface{})
+	arr, ok := raw.([]any)
 	if !ok || len(arr) < 1 {
 		return nil, nil
 	}
@@ -136,7 +143,7 @@ func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID stri
 	var records []EmbeddingRecord
 	for i := 1; i < len(arr); i += 2 {
 		key, _ := arr[i].(string)
-		data, _ := arr[i+1].([]interface{})
+		data, _ := arr[i+1].([]any)
 		var prompt string
 		var distance float64
 		for j := 0; j < len(data); j += 2 {
