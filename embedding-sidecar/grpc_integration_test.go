@@ -28,7 +28,7 @@ func TestGRPCIntegration_CheckLoop(t *testing.T) {
 		redisURL = "redis://localhost:6380"
 	}
 
-	store, err := NewVectorStore(redisURL, 5*time.Minute)
+	store, err := NewVectorStore(redisURL, 5*time.Minute, 5)
 	if err != nil {
 		t.Skipf("skipping: redis not reachable (%v)", err)
 	}
@@ -82,5 +82,3 @@ func TestGRPCIntegration_CheckLoop(t *testing.T) {
 		t.Fatalf("expected loop_detected=true, got false (max_similarity=%v)", resp.MaxSimilarity)
 	}
 }
-
-

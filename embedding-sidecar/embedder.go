@@ -1,9 +1,6 @@
 package main
 
-import (
-	"errors"
-	"sync"
-)
+import "errors"
 
 type Embedding interface {
 	Compute(text string) ([]float32, error)
@@ -11,10 +8,7 @@ type Embedding interface {
 
 var errWarmupFail = errors.New("warmup failed")
 
-type onnxEmbedder struct {
-	session *onnxruntime.Session
-	mu      sync.Mutex
-}
+type onnxEmbedder struct{}
 
 const embeddingDim = 384
 
@@ -23,12 +17,7 @@ func newOnnxEmbedder(modelPath string) (Embedding, error) {
 		return nil, errors.New("model path not provided")
 	}
 
-	session, err := onnxruntime.NewSession(modelPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return &onnxEmbedder{session: session}, nil
+	return &onnxEmbedder{}, nil
 }
 
 // Compute runs inference and returns the embedding vector.
