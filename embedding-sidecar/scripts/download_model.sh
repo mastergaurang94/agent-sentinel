@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
-DEFAULT_DEST="${REPO_ROOT}/embedding-sidecar/models/all-MiniLM-L6-v2.onnx"
+DEFAULT_DEST="${REPO_ROOT}/models/all-MiniLM-L6-v2.onnx"
 
 MODEL_URL="${MODEL_URL:-}"
 MODEL_SHA256="${MODEL_SHA256:-}"

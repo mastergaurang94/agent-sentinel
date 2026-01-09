@@ -54,7 +54,7 @@ func (s *VectorStore) EnsureIndex(ctx context.Context) error {
 		"SCHEMA",
 		"tenant_id", "TAG",
 		"prompt", "TEXT",
-		"vec", "VECTOR", "HNSW", 12,
+		"vec", "VECTOR", "HNSW", 6,
 		"TYPE", "FLOAT32",
 		"DIM", embeddingDim,
 		"DISTANCE_METRIC", "COSINE",
@@ -118,13 +118,15 @@ func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID stri
 	vecBlob := float32SliceToBytes(queryEmbedding)
 
 	// Using Redis VSS KNN query with tenant filter.
-	query := fmt.Sprintf("@tenant_id:{%s}=>[KNN %d @vec $vec AS score]", tenantID, limit)
+	tenantTag := escapeTagValue(tenantID)
+	query := fmt.Sprintf("@tenant_id:{%s}=>[KNN %d @vec $vec AS score]", tenantTag, limit)
 
 	args := []any{
 		"FT.SEARCH", redisIndexName,
 		query,
 		"PARAMS", 2, "vec", vecBlob,
 		"SORTBY", "score",
+		"LIMIT", 0, limit,
 		"RETURN", 2, "prompt", "score",
 		"DIALECT", 2,
 	}
@@ -135,44 +137,17 @@ func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID stri
 		return nil, err
 	}
 
+	// RESP3 (Redis 7.4+) returns a map; handle that first.
+	if m, ok := raw.(map[any]any); ok {
+		return parseSearchMapResult(m, limit), nil
+	}
+
 	arr, ok := raw.([]any)
 	if !ok || len(arr) < 1 {
 		return nil, nil
 	}
 
-	var records []EmbeddingRecord
-	for i := 1; i < len(arr); i += 2 {
-		key, _ := arr[i].(string)
-		data, _ := arr[i+1].([]any)
-		var prompt string
-		var distance float64
-		for j := 0; j < len(data); j += 2 {
-			field, _ := data[j].(string)
-			switch strings.ToLower(field) {
-			case "prompt":
-				prompt, _ = data[j+1].(string)
-			case "score":
-				switch v := data[j+1].(type) {
-				case string:
-					distance, _ = strconvParseFloatSafe(v)
-				case float64:
-					distance = v
-				case float32:
-					distance = float64(v)
-				}
-			}
-		}
-		similarity := distanceToSimilarity(distance)
-		records = append(records, EmbeddingRecord{
-			Prompt:     prompt,
-			Similarity: similarity,
-			Distance:   distance,
-			Key:        key,
-		})
-		if len(records) >= limit {
-			break
-		}
-	}
+	records := parseSearchArrayResult(arr, limit)
 	return records, nil
 }
 
@@ -200,4 +175,81 @@ func strconvParseFloatSafe(s string) (float64, error) {
 		return 0, nil
 	}
 	return strconv.ParseFloat(s, 64)
+}
+
+func escapeTagValue(v string) string {
+	// RediSearch TAG requires escaping special characters (e.g., hyphen).
+	v = strings.ReplaceAll(v, `\`, `\\`)
+	v = strings.ReplaceAll(v, "-", `\-`)
+	return v
+}
+
+func parseSearchMapResult(m map[any]any, limit int) []EmbeddingRecord {
+	resultsVal, ok := m["results"].([]any)
+	if !ok {
+		return nil
+	}
+	var records []EmbeddingRecord
+	for _, r := range resultsVal {
+		rm, ok := r.(map[any]any)
+		if !ok {
+			continue
+		}
+		key, _ := rm["id"].(string)
+		extra, _ := rm["extra_attributes"].(map[any]any)
+		prompt, _ := extra["prompt"].(string)
+		distance := parseFloatFromAny(extra["score"])
+		records = append(records, EmbeddingRecord{
+			Prompt:     prompt,
+			Similarity: distanceToSimilarity(distance),
+			Distance:   distance,
+			Key:        key,
+		})
+		if len(records) >= limit {
+			break
+		}
+	}
+	return records
+}
+
+func parseSearchArrayResult(arr []any, limit int) []EmbeddingRecord {
+	var records []EmbeddingRecord
+	for i := 1; i < len(arr); i += 2 {
+		key, _ := arr[i].(string)
+		data, _ := arr[i+1].([]any)
+		var prompt string
+		var distance float64
+		for j := 0; j < len(data); j += 2 {
+			field, _ := data[j].(string)
+			switch strings.ToLower(field) {
+			case "prompt":
+				prompt, _ = data[j+1].(string)
+			case "score":
+				distance = parseFloatFromAny(data[j+1])
+			}
+		}
+		records = append(records, EmbeddingRecord{
+			Prompt:     prompt,
+			Similarity: distanceToSimilarity(distance),
+			Distance:   distance,
+			Key:        key,
+		})
+		if len(records) >= limit {
+			break
+		}
+	}
+	return records
+}
+
+func parseFloatFromAny(v any) float64 {
+	switch val := v.(type) {
+	case string:
+		f, _ := strconvParseFloatSafe(val)
+		return f
+	case float64:
+		return val
+	case float32:
+		return float64(val)
+	}
+	return 0
 }

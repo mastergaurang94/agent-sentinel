@@ -59,11 +59,13 @@ func TestGRPCIntegration_CheckLoop(t *testing.T) {
 	go grpcServer.Serve(lis)
 	defer grpcServer.GracefulStop()
 
-	conn, err := grpc.Dial(
+	dialCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(
+		dialCtx,
 		"unix://"+udsPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock(),
-		grpc.WithTimeout(2*time.Second),
 	)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
@@ -71,6 +73,24 @@ func TestGRPCIntegration_CheckLoop(t *testing.T) {
 	defer conn.Close()
 
 	client := pb.NewEmbeddingServiceClient(conn)
+	tenantID := "tenant-grpc"
+	prompt := "hello loop"
+
+	// First call seeds the store (async store happens after search).
+	seedResp, err := client.CheckLoop(ctx, &pb.CheckLoopRequest{
+		TenantId: tenantID,
+		Prompt:   prompt,
+	})
+	if err != nil {
+		t.Fatalf("CheckLoop (seed): %v", err)
+	}
+	if seedResp.LoopDetected {
+		t.Fatalf("expected first call to have loop_detected=false, got true")
+	}
+
+	// Wait briefly to allow async store to complete.
+	time.Sleep(100 * time.Millisecond)
+
 	resp, err := client.CheckLoop(ctx, &pb.CheckLoopRequest{
 		TenantId: "tenant-grpc",
 		Prompt:   "hello loop",

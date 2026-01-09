@@ -28,5 +28,3 @@ func TestWarmupEmbedder_Fails(t *testing.T) {
 		t.Fatalf("expected error, got nil")
 	}
 }
-
-
