@@ -27,9 +27,13 @@ services:
       retries: 5
 
   embedding-sidecar:
+    platform: linux/amd64
     build:
       context: ./embedding-sidecar
       dockerfile: Dockerfile
+      args:
+        MODEL_URL: ${MODEL_URL}
+        MODEL_SHA256: ${MODEL_SHA256}
     container_name: embedding-sidecar
     environment:
       - REDIS_URL=redis://redis-embedding:6379
@@ -47,6 +51,7 @@ services:
     restart: unless-stopped
 
   agent-sentinel:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile

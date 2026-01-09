@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log/slog"
@@ -14,69 +13,23 @@ import (
 	"syscall"
 	"time"
 
+	"agent-sentinel/internal/async"
+	"agent-sentinel/internal/config"
+	"agent-sentinel/internal/handlers"
+	"agent-sentinel/internal/middleware"
+	"agent-sentinel/internal/telemetry"
 	"agent-sentinel/ratelimit"
 )
 
-func loadEnvFile(filename string) error {
-	file, err := os.Open(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			value = strings.Trim(value, `"'`)
-			if os.Getenv(key) == "" {
-				os.Setenv(key, value)
-			}
-		}
-	}
-	return scanner.Err()
-}
-
-func configureLogging() {
-	logLevel := slog.LevelInfo
-	if levelStr := os.Getenv("LOG_LEVEL"); levelStr != "" {
-		switch strings.ToLower(levelStr) {
-		case "debug":
-			logLevel = slog.LevelDebug
-		case "info":
-			logLevel = slog.LevelInfo
-		case "warn":
-			logLevel = slog.LevelWarn
-		case "error":
-			logLevel = slog.LevelError
-		}
-	}
-
-	opts := &slog.HandlerOptions{
-		Level:     logLevel,
-		AddSource: false,
-	}
-
-	jsonHandler := slog.NewJSONHandler(os.Stdout, opts)
-	logger := slog.New(jsonHandler)
-	slog.SetDefault(logger)
-}
-
 func main() {
-	configureLogging()
-	_ = loadEnvFile(".env")
+	config.ConfigureLogging()
+	_ = config.LoadEnvFile(".env")
 
 	// Initialize async operations (semaphore + completion tracking)
-	initAsyncOps()
+	async.Init()
 
 	// Initialize OpenTelemetry tracing (optional, based on env)
-	shutdownTracing := initTracing()
+	shutdownTracing := telemetry.InitTracing()
 
 	redisClient := ratelimit.NewRedisClient()
 	var rateLimiter *ratelimit.RateLimiter
@@ -143,8 +96,8 @@ func main() {
 		}
 	}
 
-	proxy.ModifyResponse = createModifyResponse(rateLimiter)
-	proxy.ErrorHandler = createErrorHandler(rateLimiter)
+	proxy.ModifyResponse = handlers.CreateModifyResponse(rateLimiter)
+	proxy.ErrorHandler = handlers.CreateErrorHandler(rateLimiter)
 
 	rateLimitHeader := os.Getenv("RATE_LIMIT_HEADER")
 	if rateLimitHeader == "" {
@@ -153,9 +106,9 @@ func main() {
 
 	// Build middleware chain (order: tracing -> rate limiting -> logging -> proxy)
 	var handler http.Handler = proxy
-	handler = loggingMiddleware(handler)
-	handler = rateLimitingMiddleware(rateLimiter, strings.ToLower(apiName), rateLimitHeader)(handler)
-	handler = tracingMiddleware(handler)
+	handler = middleware.Logging(handler)
+	handler = middleware.RateLimiting(rateLimiter, strings.ToLower(apiName), rateLimitHeader)(handler)
+	handler = telemetry.Middleware(handler)
 
 	port := ":8080"
 	slog.Info("Agent Sentinel proxy started",
@@ -182,7 +135,7 @@ func main() {
 
 		// Wait for in-flight async operations (Redis cost adjustments, refunds)
 		slog.Info("Waiting for in-flight operations to complete...")
-		remaining := waitForAsyncOps(shutdownCtx)
+		remaining := async.Wait(shutdownCtx)
 		if remaining > 0 {
 			slog.Warn("Some async operations did not complete",
 				"remaining", remaining,

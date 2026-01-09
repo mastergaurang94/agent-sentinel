@@ -2,50 +2,34 @@
 
 A high-performance reverse proxy for LLM agents that forwards requests to Google's Gemini API or OpenAI.
 
-## Features
+## Overview
 
-- Reverse proxy for Gemini API and OpenAI API
-- Automatic API key injection
-- Structured JSON logging (compatible with Datadog, Grafana, etc.)
-- Request logging (model and prompt)
-- Supports multiple request formats
+Agent Sentinel is a reverse proxy for LLM agents with rate limiting, cost tracking, streaming-aware accounting, and loop-detection support (via the embedding sidecar).
 
-## Setup
+## Quick start
 
-1. Set your API key as an environment variable or in a `.env` file:
-   ```bash
-   # For Gemini
-   export GEMINI_API_KEY=your-api-key-here
-   
-   # For OpenAI
-   export OPENAI_API_KEY=your-api-key-here
-   ```
-
-2. (Optional) Explicitly set the target API:
-   ```bash
-   export TARGET_API=gemini  # or "openai"
-   ```
-
-3. Embedding model: Ensure the ONNX model is available. See `embedding-sidecar/models/README.md` for how (Docker / local).
-
-3. Run the proxy:
-   ```bash
-   go run main.go
-   ```
-
-The proxy listens on port 8080 and automatically detects which API to use based on available keys. Logs are output in JSON format for enterprise observability tools.
-
-## Usage
-
-Point your API client to `http://localhost:8080` instead of the original API endpoint. The proxy automatically adds your API key to all requests.
-
-## Development
-
-```bash
-# Build
-go build -o agent-sentinel
-
-# Run
-./agent-sentinel
+1) Add API keys to `.env`:
 ```
+GEMINI_API_KEY=...
+OPENAI_API_KEY=...
+TARGET_API=gemini   # or "openai"
+```
+
+2) For the embedding sidecar model (Docker build):
+```
+MODEL_URL=https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx
+MODEL_SHA256=6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452
+```
+
+3) Run with Docker Compose:
+```
+docker compose up -d --build
+```
+
+4) Send traffic to the proxy:
+```
+POST http://localhost:8080/...
+```
+
+More detailed setup, curl examples, and testing notes are in `docs/PROXY_USAGE.md`. Embedding model specifics are in `embedding-sidecar/models/README.md`.
 

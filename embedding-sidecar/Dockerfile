@@ -14,13 +14,14 @@ COPY . .
 ENV ONNXRUNTIME_VERSION=1.18.0
 RUN curl -L -o /tmp/onnxruntime.tgz https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz \
     && tar -xzf /tmp/onnxruntime.tgz -C /tmp \
+    && mkdir -p /usr/local/lib /usr/local/include \
     && cp -r /tmp/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}/lib/* /usr/local/lib/ \
     && cp -r /tmp/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}/include/* /usr/local/include/ \
     && rm -rf /tmp/onnxruntime.tgz /tmp/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}
 
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o embedding-sidecar ./...
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o embedding-sidecar .
 
 FROM alpine:3.20
 
@@ -32,6 +33,7 @@ RUN apk add --no-cache ca-certificates curl
 ENV ONNXRUNTIME_VERSION=1.18.0
 RUN curl -L -o /tmp/onnxruntime.tgz https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz \
     && tar -xzf /tmp/onnxruntime.tgz -C /tmp \
+    && mkdir -p /usr/local/lib \
     && cp -r /tmp/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}/lib/* /usr/local/lib/ \
     && rm -rf /tmp/onnxruntime.tgz /tmp/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}
 

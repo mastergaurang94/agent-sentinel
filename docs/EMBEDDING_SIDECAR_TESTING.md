@@ -6,7 +6,9 @@ Integration tests rely on Redis Stack (VSS) and the UDS-based gRPC sidecar. The 
 
 - Docker (for Redis Stack)
 - Go 1.24+
-- ONNX model present at `embedding-sidecar/models/all-MiniLM-L6-v2.onnx` (run `./embedding-sidecar/scripts/download_model.sh` with `MODEL_URL` and `MODEL_SHA256` set if you are not using the Docker image)
+- ONNX model present at `embedding-sidecar/models/all-MiniLM-L6-v2.onnx` (run `./embedding-sidecar/scripts/download_model.sh` with `MODEL_URL` and `MODEL_SHA256` set if you are not using the Docker image). Recommended:
+  - `MODEL_URL=https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx`
+  - `MODEL_SHA256=6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452`
 
 ## Bring up Redis Stack (test only)
 
