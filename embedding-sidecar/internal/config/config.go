@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"os"
@@ -17,8 +17,8 @@ type Config struct {
 	GRPCTimeout         time.Duration
 }
 
-func loadConfig() Config {
-	cfg := Config{
+func Load() Config {
+	return Config{
 		UDSPath:             getEnv("UDS_PATH", "/tmp/embedding-sidecar.sock"),
 		RedisURL:            getEnv("REDIS_URL", "redis://localhost:6379"),
 		SimilarityThreshold: getEnvFloat("LOOP_SIMILARITY_THRESHOLD", 0.95),
@@ -28,7 +28,6 @@ func loadConfig() Config {
 		EmbeddingVocabPath:  getEnv("LOOP_EMBEDDING_VOCAB_PATH", "models/vocab.txt"),
 		GRPCTimeout:         time.Duration(getEnvInt("LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS", 50)) * time.Millisecond,
 	}
-	return cfg
 }
 
 func getEnv(key, defaultVal string) string {

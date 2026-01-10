@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"embedding-sidecar/internal/embedder"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -56,15 +58,15 @@ func (s *VectorStore) EnsureIndex(ctx context.Context) error {
 		"prompt", "TEXT",
 		"vec", "VECTOR", "HNSW", 6,
 		"TYPE", "FLOAT32",
-		"DIM", embeddingDim,
+		"DIM", embedder.EmbeddingDim,
 		"DISTANCE_METRIC", "COSINE",
 	}
 	return s.client.Do(ctx, args...).Err()
 }
 
 func (s *VectorStore) StoreEmbedding(ctx context.Context, tenantID, prompt string, embedding []float32) error {
-	if len(embedding) != embeddingDim {
-		return fmt.Errorf("embedding dimension mismatch: got %d want %d", len(embedding), embeddingDim)
+	if len(embedding) != embedder.EmbeddingDim {
+		return fmt.Errorf("embedding dimension mismatch: got %d want %d", len(embedding), embedder.EmbeddingDim)
 	}
 
 	key := fmt.Sprintf("%s%s:%d", redisKeyPrefix, tenantID, time.Now().UnixNano())
@@ -111,8 +113,8 @@ func (s *VectorStore) pruneOldEmbeddings(ctx context.Context, tenantID string, k
 }
 
 func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID string, queryEmbedding []float32, limit int) ([]EmbeddingRecord, error) {
-	if len(queryEmbedding) != embeddingDim {
-		return nil, fmt.Errorf("embedding dimension mismatch: got %d want %d", len(queryEmbedding), embeddingDim)
+	if len(queryEmbedding) != embedder.EmbeddingDim {
+		return nil, fmt.Errorf("embedding dimension mismatch: got %d want %d", len(queryEmbedding), embedder.EmbeddingDim)
 	}
 
 	vecBlob := float32SliceToBytes(queryEmbedding)

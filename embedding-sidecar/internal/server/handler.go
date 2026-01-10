@@ -1,18 +1,19 @@
-package main
+package server
 
 import (
 	"context"
 	"log/slog"
 
+	"embedding-sidecar/internal/detector"
 	pb "embedding-sidecar/proto"
 )
 
 type EmbeddingHandler struct {
 	pb.UnimplementedEmbeddingServiceServer
-	detector *Detector
+	detector *detector.Detector
 }
 
-func NewEmbeddingHandler(detector *Detector) *EmbeddingHandler {
+func NewEmbeddingHandler(detector *detector.Detector) *EmbeddingHandler {
 	return &EmbeddingHandler{detector: detector}
 }
 

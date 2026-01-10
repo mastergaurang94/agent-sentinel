@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"context"
@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"embedding-sidecar/internal/detector"
+	"embedding-sidecar/internal/embedder"
+	storepkg "embedding-sidecar/internal/store"
 	pb "embedding-sidecar/proto"
 
 	"google.golang.org/grpc"
@@ -28,22 +31,22 @@ func TestGRPCIntegration_CheckLoop(t *testing.T) {
 		redisURL = "redis://localhost:6380"
 	}
 
-	store, err := NewVectorStore(redisURL, 5*time.Minute, 5)
+	vectorStore, err := storepkg.NewVectorStore(redisURL, 5*time.Minute, 5)
 	if err != nil {
 		t.Skipf("skipping: redis not reachable (%v)", err)
 	}
 	ctx := context.Background()
-	if err := store.EnsureIndex(ctx); err != nil {
+	if err := vectorStore.EnsureIndex(ctx); err != nil {
 		t.Skipf("skipping: redis index not available (%v)", err)
 	}
 
-	vec := make([]float32, embeddingDim)
+	vec := make([]float32, embedder.EmbeddingDim)
 	for i := range vec {
 		vec[i] = 0.02 * float32(i+1)
 	}
 	embedder := &stubEmbedder{vec: vec}
 
-	detector := NewDetector(store, embedder, 0.5, 5)
+	detector := detector.NewDetector(vectorStore, embedder, 0.5, 5)
 	handler := NewEmbeddingHandler(detector)
 
 	udsPath := filepath.Join(os.TempDir(), "embedding-sidecar-test.sock")

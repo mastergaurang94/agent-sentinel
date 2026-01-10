@@ -1,10 +1,12 @@
-package main
+package store
 
 import (
 	"context"
 	"os"
 	"testing"
 	"time"
+
+	"embedding-sidecar/internal/embedder"
 )
 
 // These integration tests require Redis Stack with VSS (e.g., redis-stack at localhost:6380).
@@ -24,7 +26,7 @@ func TestVectorStoreIntegration_WithRedisStack(t *testing.T) {
 		t.Skipf("skipping: redis index not available (%v)", err)
 	}
 
-	vec := make([]float32, embeddingDim)
+	vec := make([]float32, embedder.EmbeddingDim)
 	for i := range vec {
 		vec[i] = 0.01 * float32(i+1)
 	}

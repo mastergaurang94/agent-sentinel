@@ -1,4 +1,4 @@
-package main
+package embedder
 
 import "testing"
 
@@ -14,7 +14,7 @@ func (c *countingEmbedder) Compute(text string) ([]float32, error) {
 
 func TestWarmupEmbedder_Succeeds(t *testing.T) {
 	emb := &countingEmbedder{}
-	if err := warmupEmbedder(emb); err != nil {
+	if err := Warmup(emb); err != nil {
 		t.Fatalf("warmup failed: %v", err)
 	}
 	if emb.count != 1 {
@@ -24,7 +24,7 @@ func TestWarmupEmbedder_Succeeds(t *testing.T) {
 
 func TestWarmupEmbedder_Fails(t *testing.T) {
 	emb := &countingEmbedder{err: errWarmupFail}
-	if err := warmupEmbedder(emb); err == nil {
+	if err := Warmup(emb); err == nil {
 		t.Fatalf("expected error, got nil")
 	}
 }

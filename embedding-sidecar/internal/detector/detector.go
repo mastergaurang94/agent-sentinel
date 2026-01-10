@@ -1,13 +1,16 @@
-package main
+package detector
 
 import (
 	"context"
 	"log/slog"
+
+	"embedding-sidecar/internal/embedder"
+	"embedding-sidecar/internal/store"
 )
 
 type Detector struct {
-	store               *VectorStore
-	embedder            Embedding
+	store               *store.VectorStore
+	embedder            embedder.Embedding
 	similarityThreshold float64
 	limit               int
 }
@@ -18,7 +21,7 @@ type LoopResult struct {
 	SimilarPrompt string
 }
 
-func NewDetector(store *VectorStore, embedder Embedding, similarityThreshold float64, limit int) *Detector {
+func NewDetector(store *store.VectorStore, embedder embedder.Embedding, similarityThreshold float64, limit int) *Detector {
 	return &Detector{
 		store:               store,
 		embedder:            embedder,

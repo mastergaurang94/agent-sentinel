@@ -1,10 +1,11 @@
-package main
+package embedder
 
 import (
 	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/yalue/onnxruntime_go"
 )
@@ -20,9 +21,9 @@ type onnxEmbedder struct {
 	tokenizer *wordpieceTokenizer
 }
 
-const embeddingDim = 384
+const EmbeddingDim = 384
 
-func newOnnxEmbedder(modelPath string, vocabPath string) (Embedding, error) {
+func NewONNXEmbedder(modelPath string, vocabPath string) (Embedding, error) {
 	if modelPath == "" {
 		return nil, errors.New("model path not provided")
 	}
@@ -55,8 +56,8 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 
 	inputNames := []string{"input_ids", "attention_mask"}
 	outputNames := []string{"sentence_embedding"}
-	outputBuffer := make([]float32, embeddingDim)
-	outputTensor, err := onnxruntime_go.NewTensor[float32](onnxruntime_go.Shape{1, embeddingDim}, outputBuffer)
+	outputBuffer := make([]float32, EmbeddingDim)
+	outputTensor, err := onnxruntime_go.NewTensor[float32](onnxruntime_go.Shape{1, EmbeddingDim}, outputBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("create output tensor: %w", err)
 	}
@@ -74,13 +75,13 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 	}
 
 	data := outputTensor.GetData()
-	if len(data) != embeddingDim {
-		return nil, fmt.Errorf("unexpected embedding dim: got %d want %d", len(data), embeddingDim)
+	if len(data) != EmbeddingDim {
+		return nil, fmt.Errorf("unexpected embedding dim: got %d want %d", len(data), EmbeddingDim)
 	}
 	return data, nil
 }
 
-func warmupEmbedder(embedder Embedding) error {
+func Warmup(embedder Embedding) error {
 	_, err := embedder.Compute("warmup")
 	return err
 }
@@ -179,7 +180,6 @@ func (t *wordpieceTokenizer) wordpiece(token string) []int {
 }
 
 func basicTokenize(text string) []string {
-	// very simple whitespace/punctuation splitter
 	var tokens []string
 	var sb strings.Builder
 	flush := func() {
@@ -188,17 +188,26 @@ func basicTokenize(text string) []string {
 			sb.Reset()
 		}
 	}
-	for _, r := range text {
-		if strings.ContainsRune(" \t\n\r", r) {
-			flush()
-			continue
+	isWord := func(r rune) bool {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return true
 		}
-		if strings.ContainsRune(".,!?;:()[]{}\"'", r) {
+		// keep hyphen/underscore/apostrophe inside words (e.g., mid-token)
+		return r == '-' || r == '_' || r == '\''
+	}
+	for _, r := range text {
+		switch {
+		case unicode.IsSpace(r):
+			flush()
+		case isWord(r):
+			sb.WriteRune(r)
+		case unicode.IsPunct(r) || unicode.IsSymbol(r):
 			flush()
 			tokens = append(tokens, string(r))
-			continue
+		default:
+			flush()
+			tokens = append(tokens, string(r))
 		}
-		sb.WriteRune(r)
 	}
 	flush()
 	return tokens

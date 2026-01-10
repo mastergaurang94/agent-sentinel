@@ -9,42 +9,47 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"embedding-sidecar/internal/config"
+	"embedding-sidecar/internal/detector"
+	"embedding-sidecar/internal/embedder"
+	"embedding-sidecar/internal/server"
+	"embedding-sidecar/internal/store"
 	pb "embedding-sidecar/proto"
 
 	"google.golang.org/grpc"
 )
 
 func main() {
-	cfg := loadConfig()
+	cfg := config.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
-	store, err := NewVectorStore(cfg.RedisURL, cfg.EmbeddingTTL, cfg.HistorySize)
+	vectorStore, err := store.NewVectorStore(cfg.RedisURL, cfg.EmbeddingTTL, cfg.HistorySize)
 	if err != nil {
 		slog.Error("failed to init redis", "error", err)
 		os.Exit(1)
 	}
 
 	ctx := context.Background()
-	if err := store.EnsureIndex(ctx); err != nil {
+	if err := vectorStore.EnsureIndex(ctx); err != nil {
 		slog.Error("failed to ensure redis index", "error", err)
 		os.Exit(1)
 	}
 
-	embedder, err := newOnnxEmbedder(cfg.EmbeddingModelPath, cfg.EmbeddingVocabPath)
+	emb, err := embedder.NewONNXEmbedder(cfg.EmbeddingModelPath, cfg.EmbeddingVocabPath)
 	if err != nil {
 		slog.Error("failed to init embedder", "error", err)
 		os.Exit(1)
 	}
 
-	if err := warmupEmbedder(embedder); err != nil {
+	if err := embedder.Warmup(emb); err != nil {
 		slog.Error("embedder warmup failed", "error", err)
 		os.Exit(1)
 	}
 	slog.Info("embedder warmup completed")
 
-	detector := NewDetector(store, embedder, cfg.SimilarityThreshold, cfg.HistorySize)
-	handler := NewEmbeddingHandler(detector)
+	det := detector.NewDetector(vectorStore, emb, cfg.SimilarityThreshold, cfg.HistorySize)
+	handler := server.NewEmbeddingHandler(det)
 
 	if err := removeIfExists(cfg.UDSPath); err != nil {
 		slog.Error("failed to cleanup UDS path", "error", err)
