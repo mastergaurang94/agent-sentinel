@@ -27,12 +27,8 @@ func LoopDetection(client *loopdetect.Client, provider providers.Provider, heade
 			}
 
 			ctx := r.Context()
-			tr := telemetry.Tracer()
-			var span trace.Span
-			if tr != nil {
-				ctx, span = tr.Start(ctx, "loop_detection.middleware")
-				defer span.End()
-			}
+			ctx, span := telemetry.StartSpan(ctx, "loop_detection.middleware")
+			defer span.End()
 
 			tenantID := r.Header.Get(headerName)
 			if tenantID == "" {

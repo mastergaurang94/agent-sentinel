@@ -53,18 +53,15 @@ func (c *Client) Check(ctx context.Context, tenantID, prompt string) (pb.CheckLo
 	if c == nil || c.client == nil || prompt == "" || tenantID == "" {
 		return empty, nil
 	}
-	var span trace.Span
-	if c.tracer != nil {
-		ctx, span = c.tracer.Start(ctx, "loop_detection.call",
-			trace.WithSpanKind(trace.SpanKindClient),
-			trace.WithAttributes(
-				attribute.String("loop.tenant_id", tenantID),
-				attribute.String("loop.transport", "uds"),
-				attribute.Int64("loop.timeout_ms", c.timeout.Milliseconds()),
-			),
-		)
-		defer span.End()
-	}
+	ctx, span := telemetry.StartSpan(ctx, "loop_detection.call",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("loop.tenant_id", tenantID),
+			attribute.String("loop.transport", "uds"),
+			attribute.Int64("loop.timeout_ms", c.timeout.Milliseconds()),
+		),
+	)
+	defer span.End()
 	callCtx := ctx
 	if c.timeout > 0 {
 		var cancel context.CancelFunc

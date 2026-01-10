@@ -25,6 +25,15 @@ func Tracer() trace.Tracer {
 	return tracer
 }
 
+// StartSpan starts a span if tracing is configured; otherwise returns a noop span.
+func StartSpan(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	t := tracer
+	if t == nil {
+		return ctx, trace.SpanFromContext(ctx)
+	}
+	return t.Start(ctx, name, opts...)
+}
+
 // InitTracing configures OpenTelemetry if endpoint is provided.
 func InitTracing() func(context.Context) error {
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
