@@ -18,6 +18,7 @@ This document tracks future enhancements and improvements for Agent Sentinel.
   - Track rate limit checks (allowed/denied)
   - Measure Redis operation latency
   - Monitor cost estimation accuracy (estimate vs actual)
+- [ ] **Tenant ID hashing middleware**: add upstream hashing of tenant IDs before telemetry/metrics labeling
 
 
 ## Testing

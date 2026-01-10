@@ -2,8 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"log/slog"
 	"sync"
 	"time"
@@ -75,7 +73,7 @@ func RecordRateLimitRequest(ctx context.Context, result, reason, provider, model
 		attrs = append(attrs, attribute.String("model", model))
 	}
 	if tenantID != "" {
-		attrs = append(attrs, attribute.String("tenant.id", hashTenant(tenantID)))
+		attrs = append(attrs, attribute.String("tenant.id", tenantID))
 	}
 
 	rateLimitRequests.Add(ctx, 1, metric.WithAttributes(attrs...))
@@ -98,7 +96,7 @@ func ObserveRedisLatency(ctx context.Context, op, backend, result string, d time
 		attrs = append(attrs, attribute.String("backend", backend))
 	}
 	if tenantID != "" {
-		attrs = append(attrs, attribute.String("tenant.id", hashTenant(tenantID)))
+		attrs = append(attrs, attribute.String("tenant.id", tenantID))
 	}
 
 	redisLatencyMs.Record(ctx, float64(d.Milliseconds()), metric.WithAttributes(attrs...))
@@ -120,7 +118,7 @@ func IncRedisError(ctx context.Context, op, backend, tenantID string) {
 		attrs = append(attrs, attribute.String("backend", backend))
 	}
 	if tenantID != "" {
-		attrs = append(attrs, attribute.String("tenant.id", hashTenant(tenantID)))
+		attrs = append(attrs, attribute.String("tenant.id", tenantID))
 	}
 
 	redisErrors.Add(ctx, 1, metric.WithAttributes(attrs...))
@@ -143,7 +141,7 @@ func ObserveEstimateLatency(ctx context.Context, provider, model, tenantID strin
 		attrs = append(attrs, attribute.String("model", model))
 	}
 	if tenantID != "" {
-		attrs = append(attrs, attribute.String("tenant.id", hashTenant(tenantID)))
+		attrs = append(attrs, attribute.String("tenant.id", tenantID))
 	}
 
 	estimateLatencyMs.Record(ctx, float64(d.Milliseconds()), metric.WithAttributes(attrs...))
@@ -166,7 +164,7 @@ func ObserveCostDelta(ctx context.Context, provider, model, tenantID string, del
 		attrs = append(attrs, attribute.String("model", model))
 	}
 	if tenantID != "" {
-		attrs = append(attrs, attribute.String("tenant.id", hashTenant(tenantID)))
+		attrs = append(attrs, attribute.String("tenant.id", tenantID))
 	}
 
 	costDeltaUSD.Record(ctx, delta, metric.WithAttributes(attrs...))
@@ -192,14 +190,8 @@ func IncRefund(ctx context.Context, provider, model, tenantID, reason string) {
 		attrs = append(attrs, attribute.String("model", model))
 	}
 	if tenantID != "" {
-		attrs = append(attrs, attribute.String("tenant.id", hashTenant(tenantID)))
+		attrs = append(attrs, attribute.String("tenant.id", tenantID))
 	}
 
 	refundCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
-}
-
-// hashTenant produces a short hash to avoid cardinality explosions while keeping IDs useful.
-func hashTenant(tenantID string) string {
-	sum := sha256.Sum256([]byte(tenantID))
-	return hex.EncodeToString(sum[:])[:12]
 }
