@@ -96,7 +96,7 @@ func main() {
 	if loopUDS == "" {
 		loopUDS = "/sockets/embedding-sidecar.sock"
 	}
-	loopTimeoutMs := 50
+	loopTimeoutMs := 350
 	if v := os.Getenv("LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
 			loopTimeoutMs = parsed

@@ -2,6 +2,7 @@ package loopdetect
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"time"
 
@@ -53,6 +54,7 @@ func (c *Client) Check(ctx context.Context, tenantID, prompt string) (pb.CheckLo
 	if c == nil || c.client == nil || prompt == "" || tenantID == "" {
 		return empty, nil
 	}
+	start := time.Now()
 	ctx, span := telemetry.StartSpan(ctx, "loop_detection.call",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
@@ -79,11 +81,14 @@ func (c *Client) Check(ctx context.Context, tenantID, prompt string) (pb.CheckLo
 		}
 		return empty, err
 	}
+	dur := time.Since(start)
 	if span != nil && resp != nil {
 		span.SetAttributes(
 			attribute.Bool("loop.detected", resp.GetLoopDetected()),
 			attribute.Float64("loop.max_similarity", resp.GetMaxSimilarity()),
+			attribute.Int64("loop.duration_ms", dur.Milliseconds()),
 		)
 	}
+	slog.Debug("loop detect rpc", "tenant_id", tenantID, "duration_ms", dur.Milliseconds(), "timeout_ms", c.timeout.Milliseconds())
 	return *resp, nil
 }
