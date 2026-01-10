@@ -17,7 +17,7 @@ func TestVectorStoreIntegration_WithRedisStack(t *testing.T) {
 		redisURL = "redis://localhost:6380"
 	}
 
-	store, err := NewVectorStore(redisURL, 5*time.Minute, 5)
+	store, err := NewVectorStore(redisURL, 5*time.Minute, 5, embedder.DefaultEmbeddingDim)
 	if err != nil {
 		t.Skipf("skipping: redis not reachable (%v)", err)
 	}
@@ -26,7 +26,7 @@ func TestVectorStoreIntegration_WithRedisStack(t *testing.T) {
 		t.Skipf("skipping: redis index not available (%v)", err)
 	}
 
-	vec := make([]float32, embedder.EmbeddingDim)
+	vec := make([]float32, embedder.DefaultEmbeddingDim)
 	for i := range vec {
 		vec[i] = 0.01 * float32(i+1)
 	}

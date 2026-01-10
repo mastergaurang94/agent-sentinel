@@ -17,25 +17,38 @@ type Embedding interface {
 var errWarmupFail = errors.New("warmup failed")
 
 type onnxEmbedder struct {
-	modelPath string
-	tokenizer *wordpieceTokenizer
+	modelPath  string
+	tokenizer  *wordpieceTokenizer
+	outputName string
+	dim        int
 }
 
-const EmbeddingDim = 384
+const DefaultEmbeddingDim = 384
 
-func NewONNXEmbedder(modelPath string, vocabPath string) (Embedding, error) {
+func NewONNXEmbedder(modelPath string, vocabPath string, outputName string, dim int) (Embedding, error) {
 	if modelPath == "" {
 		return nil, errors.New("model path not provided")
 	}
 	if vocabPath == "" {
 		return nil, errors.New("vocab path not provided")
 	}
+	if outputName == "" {
+		outputName = "sentence_embedding"
+	}
+	if dim <= 0 {
+		dim = DefaultEmbeddingDim
+	}
 	tokenizer, err := loadWordpieceTokenizer(vocabPath, 256)
 	if err != nil {
 		return nil, fmt.Errorf("load tokenizer: %w", err)
 	}
 	onnxruntime_go.SetSharedLibraryPath("/usr/local/lib/libonnxruntime.so")
-	return &onnxEmbedder{modelPath: modelPath, tokenizer: tokenizer}, nil
+	return &onnxEmbedder{
+		modelPath:  modelPath,
+		tokenizer:  tokenizer,
+		outputName: outputName,
+		dim:        dim,
+	}, nil
 }
 
 // Compute runs inference and returns the embedding vector.
@@ -55,9 +68,9 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 	}
 
 	inputNames := []string{"input_ids", "attention_mask"}
-	outputNames := []string{"sentence_embedding"}
-	outputBuffer := make([]float32, EmbeddingDim)
-	outputTensor, err := onnxruntime_go.NewTensor[float32](onnxruntime_go.Shape{1, EmbeddingDim}, outputBuffer)
+	outputNames := []string{e.outputName}
+	outputBuffer := make([]float32, e.dim)
+	outputTensor, err := onnxruntime_go.NewTensor[float32](onnxruntime_go.Shape{1, int64(e.dim)}, outputBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("create output tensor: %w", err)
 	}
@@ -75,8 +88,8 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 	}
 
 	data := outputTensor.GetData()
-	if len(data) != EmbeddingDim {
-		return nil, fmt.Errorf("unexpected embedding dim: got %d want %d", len(data), EmbeddingDim)
+	if len(data) != e.dim {
+		return nil, fmt.Errorf("unexpected embedding dim: got %d want %d", len(data), e.dim)
 	}
 	return data, nil
 }

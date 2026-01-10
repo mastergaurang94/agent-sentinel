@@ -25,6 +25,7 @@ type VectorStore struct {
 	client redis.UniversalClient
 	ttl    time.Duration
 	keep   int
+	dim    int
 }
 
 type EmbeddingRecord struct {
@@ -34,13 +35,16 @@ type EmbeddingRecord struct {
 	Key        string
 }
 
-func NewVectorStore(redisURL string, ttl time.Duration, keep int) (*VectorStore, error) {
+func NewVectorStore(redisURL string, ttl time.Duration, keep int, dim int) (*VectorStore, error) {
 	opts, err := redis.ParseURL(redisURL)
 	if err != nil {
 		return nil, err
 	}
 	client := redis.NewClient(opts)
-	return &VectorStore{client: client, ttl: ttl, keep: keep}, nil
+	if dim <= 0 {
+		dim = embedder.DefaultEmbeddingDim
+	}
+	return &VectorStore{client: client, ttl: ttl, keep: keep, dim: dim}, nil
 }
 
 func (s *VectorStore) EnsureIndex(ctx context.Context) error {
@@ -58,15 +62,15 @@ func (s *VectorStore) EnsureIndex(ctx context.Context) error {
 		"prompt", "TEXT",
 		"vec", "VECTOR", "HNSW", 6,
 		"TYPE", "FLOAT32",
-		"DIM", embedder.EmbeddingDim,
+		"DIM", s.dim,
 		"DISTANCE_METRIC", "COSINE",
 	}
 	return s.client.Do(ctx, args...).Err()
 }
 
 func (s *VectorStore) StoreEmbedding(ctx context.Context, tenantID, prompt string, embedding []float32) error {
-	if len(embedding) != embedder.EmbeddingDim {
-		return fmt.Errorf("embedding dimension mismatch: got %d want %d", len(embedding), embedder.EmbeddingDim)
+	if len(embedding) != s.dim {
+		return fmt.Errorf("embedding dimension mismatch: got %d want %d", len(embedding), s.dim)
 	}
 
 	key := fmt.Sprintf("%s%s:%d", redisKeyPrefix, tenantID, time.Now().UnixNano())
@@ -113,8 +117,8 @@ func (s *VectorStore) pruneOldEmbeddings(ctx context.Context, tenantID string, k
 }
 
 func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID string, queryEmbedding []float32, limit int) ([]EmbeddingRecord, error) {
-	if len(queryEmbedding) != embedder.EmbeddingDim {
-		return nil, fmt.Errorf("embedding dimension mismatch: got %d want %d", len(queryEmbedding), embedder.EmbeddingDim)
+	if len(queryEmbedding) != s.dim {
+		return nil, fmt.Errorf("embedding dimension mismatch: got %d want %d", len(queryEmbedding), s.dim)
 	}
 
 	vecBlob := float32SliceToBytes(queryEmbedding)

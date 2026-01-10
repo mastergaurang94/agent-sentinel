@@ -31,7 +31,7 @@ func TestGRPCIntegration_CheckLoop(t *testing.T) {
 		redisURL = "redis://localhost:6380"
 	}
 
-	vectorStore, err := storepkg.NewVectorStore(redisURL, 5*time.Minute, 5)
+	vectorStore, err := storepkg.NewVectorStore(redisURL, 5*time.Minute, 5, embedder.DefaultEmbeddingDim)
 	if err != nil {
 		t.Skipf("skipping: redis not reachable (%v)", err)
 	}
@@ -40,7 +40,7 @@ func TestGRPCIntegration_CheckLoop(t *testing.T) {
 		t.Skipf("skipping: redis index not available (%v)", err)
 	}
 
-	vec := make([]float32, embedder.EmbeddingDim)
+	vec := make([]float32, embedder.DefaultEmbeddingDim)
 	for i := range vec {
 		vec[i] = 0.02 * float32(i+1)
 	}

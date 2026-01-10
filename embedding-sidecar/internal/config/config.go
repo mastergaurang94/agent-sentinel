@@ -14,6 +14,8 @@ type Config struct {
 	EmbeddingTTL        time.Duration
 	EmbeddingModelPath  string
 	EmbeddingVocabPath  string
+	EmbeddingDim        int
+	EmbeddingOutputName string
 	GRPCTimeout         time.Duration
 }
 
@@ -26,6 +28,8 @@ func Load() Config {
 		EmbeddingTTL:        time.Duration(getEnvInt("LOOP_EMBEDDING_TTL", 3600)) * time.Second,
 		EmbeddingModelPath:  getEnv("LOOP_EMBEDDING_MODEL_PATH", "models/all-MiniLM-L6-v2.onnx"),
 		EmbeddingVocabPath:  getEnv("LOOP_EMBEDDING_VOCAB_PATH", "models/vocab.txt"),
+		EmbeddingDim:        getEnvInt("LOOP_EMBEDDING_DIM", 384),
+		EmbeddingOutputName: getEnv("LOOP_EMBEDDING_OUTPUT_NAME", "sentence_embedding"),
 		GRPCTimeout:         time.Duration(getEnvInt("LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS", 50)) * time.Millisecond,
 	}
 }

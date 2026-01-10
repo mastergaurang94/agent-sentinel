@@ -24,7 +24,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
-	vectorStore, err := store.NewVectorStore(cfg.RedisURL, cfg.EmbeddingTTL, cfg.HistorySize)
+	vectorStore, err := store.NewVectorStore(cfg.RedisURL, cfg.EmbeddingTTL, cfg.HistorySize, cfg.EmbeddingDim)
 	if err != nil {
 		slog.Error("failed to init redis", "error", err)
 		os.Exit(1)
@@ -36,7 +36,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	emb, err := embedder.NewONNXEmbedder(cfg.EmbeddingModelPath, cfg.EmbeddingVocabPath)
+	emb, err := embedder.NewONNXEmbedder(cfg.EmbeddingModelPath, cfg.EmbeddingVocabPath, cfg.EmbeddingOutputName, cfg.EmbeddingDim)
 	if err != nil {
 		slog.Error("failed to init embedder", "error", err)
 		os.Exit(1)
