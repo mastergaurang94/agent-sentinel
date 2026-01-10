@@ -7,6 +7,7 @@ DEFAULT_DEST="${REPO_ROOT}/models/all-MiniLM-L6-v2.onnx"
 
 MODEL_URL="${MODEL_URL:-}"
 MODEL_SHA256="${MODEL_SHA256:-}"
+VOCAB_URL="${VOCAB_URL:-https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt}"
 DEST="${1:-${DEFAULT_DEST}}"
 
 if [[ -z "${MODEL_URL}" ]]; then
@@ -38,4 +39,11 @@ echo "${MODEL_SHA256}  ${tmp_file}" | sha256sum -c -
 mv "${tmp_file}" "${DEST}"
 chmod 0644 "${DEST}"
 echo "Model downloaded to ${DEST}"
+
+VOCAB_DEST="$(dirname "${DEST}")/vocab.txt"
+if [[ ! -f "${VOCAB_DEST}" ]]; then
+  curl -L "${VOCAB_URL}" -o "${VOCAB_DEST}"
+  chmod 0644 "${VOCAB_DEST}"
+  echo "Vocab downloaded to ${VOCAB_DEST}"
+fi
 

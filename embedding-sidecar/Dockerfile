@@ -40,13 +40,15 @@ RUN curl -L -o /tmp/onnxruntime.tgz https://github.com/microsoft/onnxruntime/rel
 ARG MODEL_URL
 ARG MODEL_SHA256
 ARG MODEL_FILENAME=all-MiniLM-L6-v2.onnx
+ARG VOCAB_URL=https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt
 RUN set -euo pipefail \
     && [ -n "${MODEL_URL}" ] || (echo "MODEL_URL build arg is required" && exit 1) \
     && [ -n "${MODEL_SHA256}" ] || (echo "MODEL_SHA256 build arg is required" && exit 1) \
     && mkdir -p /app/models \
     && curl -L "${MODEL_URL}" -o /tmp/model.onnx \
     && echo "${MODEL_SHA256}  /tmp/model.onnx" | sha256sum -c - \
-    && mv /tmp/model.onnx "/app/models/${MODEL_FILENAME}"
+    && mv /tmp/model.onnx "/app/models/${MODEL_FILENAME}" \
+    && curl -L "${VOCAB_URL}" -o /app/models/vocab.txt
 
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
@@ -61,6 +63,7 @@ ENV LOOP_SIMILARITY_THRESHOLD=0.95
 ENV LOOP_HISTORY_SIZE=5
 ENV LOOP_EMBEDDING_TTL=3600
 ENV LOOP_EMBEDDING_MODEL_PATH=/app/models/all-MiniLM-L6-v2.onnx
+ENV LOOP_EMBEDDING_VOCAB_PATH=/app/models/vocab.txt
 ENV LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS=50
 
 EXPOSE 8081

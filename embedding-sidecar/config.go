@@ -13,6 +13,7 @@ type Config struct {
 	HistorySize         int
 	EmbeddingTTL        time.Duration
 	EmbeddingModelPath  string
+	EmbeddingVocabPath  string
 	GRPCTimeout         time.Duration
 }
 
@@ -24,6 +25,7 @@ func loadConfig() Config {
 		HistorySize:         getEnvInt("LOOP_HISTORY_SIZE", 5),
 		EmbeddingTTL:        time.Duration(getEnvInt("LOOP_EMBEDDING_TTL", 3600)) * time.Second,
 		EmbeddingModelPath:  getEnv("LOOP_EMBEDDING_MODEL_PATH", "models/all-MiniLM-L6-v2.onnx"),
+		EmbeddingVocabPath:  getEnv("LOOP_EMBEDDING_VOCAB_PATH", "models/vocab.txt"),
 		GRPCTimeout:         time.Duration(getEnvInt("LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS", 50)) * time.Millisecond,
 	}
 	return cfg

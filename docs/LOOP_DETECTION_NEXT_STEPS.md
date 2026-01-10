@@ -20,12 +20,11 @@ Planned tasks to finish embedding sidecar integration and hardening:
 
 5) CI/test hardening
    - Run sidecar integration tests with Redis Stack in CI; optionally cache model download.
-   - Keep RESP3/RESP2 parsing support.
 
-6) Docs
-   - Add a short note in proxy docs about enabling loop detection (envs, UDS path, behavior on fail-open) once middleware is in place.
-
-Optional
+6) Hardening
    - Add a gRPC health/readiness check for the sidecar.
    - Make embedding Redis port configurable if needed.
+
+7) Docs
+   - Add a short note in proxy docs about enabling loop detection (envs, UDS path, behavior on fail-open) once middleware is in place.
 

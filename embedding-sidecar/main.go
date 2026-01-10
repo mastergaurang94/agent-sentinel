@@ -31,7 +31,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	embedder, err := newOnnxEmbedder(cfg.EmbeddingModelPath)
+	embedder, err := newOnnxEmbedder(cfg.EmbeddingModelPath, cfg.EmbeddingVocabPath)
 	if err != nil {
 		slog.Error("failed to init embedder", "error", err)
 		os.Exit(1)
