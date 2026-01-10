@@ -43,6 +43,7 @@ services:
       - LOOP_EMBEDDING_TTL=${LOOP_EMBEDDING_TTL:-3600}
       - LOOP_EMBEDDING_MODEL_PATH=/app/models/all-MiniLM-L6-v2.onnx
       - LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS=${LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS:-50}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-otel-collector:4317}
     volumes:
       - sockets:/sockets
     depends_on:
@@ -66,7 +67,7 @@ services:
       - DEFAULT_SPEND_LIMIT=${DEFAULT_SPEND_LIMIT:-100.00}
       - RATE_LIMIT_HEADER=${RATE_LIMIT_HEADER:-X-Tenant-ID}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-otel-collector:4317}
       - LOOP_EMBEDDING_SIDECAR_UDS=/sockets/embedding-sidecar.sock
     env_file:
       - .env
@@ -75,9 +76,21 @@ services:
         condition: service_started
       embedding-sidecar:
         condition: service_started
+      otel-collector:
+        condition: service_started
     restart: unless-stopped
     volumes:
       - sockets:/sockets
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.104.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"
+    restart: unless-stopped
 
 volumes:
   redis-data:
