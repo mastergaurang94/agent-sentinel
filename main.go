@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"agent-sentinel/internal/async"
 	"agent-sentinel/internal/config"
 	"agent-sentinel/internal/handlers"
+	"agent-sentinel/internal/loopdetect"
 	"agent-sentinel/internal/middleware"
 	"agent-sentinel/internal/telemetry"
 	"agent-sentinel/ratelimit"
@@ -104,9 +106,32 @@ func main() {
 		rateLimitHeader = "X-Tenant-ID"
 	}
 
+	loopUDS := os.Getenv("LOOP_EMBEDDING_SIDECAR_UDS")
+	if loopUDS == "" {
+		loopUDS = "/sockets/embedding-sidecar.sock"
+	}
+	loopTimeoutMs := 50
+	if v := os.Getenv("LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			loopTimeoutMs = parsed
+		}
+	}
+	loopHint := os.Getenv("LOOP_INTERVENTION_HINT")
+	if loopHint == "" {
+		loopHint = "System: break the loop and respond with a new approach."
+	}
+	var loopClient *loopdetect.Client
+	if client, err := loopdetect.New(loopUDS, time.Duration(loopTimeoutMs)*time.Millisecond); err != nil {
+		slog.Warn("Loop detection client init failed (fail-open)", "error", err)
+	} else {
+		loopClient = client
+		slog.Info("Loop detection enabled", "uds", loopUDS, "timeout_ms", loopTimeoutMs)
+	}
+
 	// Build middleware chain (order: tracing -> rate limiting -> logging -> proxy)
 	var handler http.Handler = proxy
 	handler = middleware.Logging(handler)
+	handler = middleware.LoopDetection(loopClient, rateLimitHeader, loopHint)(handler)
 	handler = middleware.RateLimiting(rateLimiter, strings.ToLower(apiName), rateLimitHeader)(handler)
 	handler = telemetry.Middleware(handler)
 
