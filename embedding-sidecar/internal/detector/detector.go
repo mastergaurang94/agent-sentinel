@@ -55,7 +55,8 @@ func (d *Detector) CheckLoop(ctx context.Context, tenantID, prompt string) (Loop
 
 	// Store the new embedding asynchronously to keep latency low.
 	go func() {
-		if err := d.store.StoreEmbedding(context.Background(), tenantID, prompt, embedding); err != nil {
+		storeCtx := context.WithoutCancel(ctx)
+		if err := d.store.StoreEmbedding(storeCtx, tenantID, prompt, embedding); err != nil {
 			slog.Warn("failed to store embedding", "error", err)
 		}
 	}()

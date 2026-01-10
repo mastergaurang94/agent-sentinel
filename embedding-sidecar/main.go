@@ -16,6 +16,8 @@ import (
 	"embedding-sidecar/internal/store"
 	pb "embedding-sidecar/proto"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -44,10 +46,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	_, warmSpan := otel.Tracer("embedding-sidecar/main").Start(ctx, "EmbedderWarmup")
 	if err := embedder.Warmup(emb); err != nil {
+		warmSpan.RecordError(err)
+		warmSpan.SetStatus(codes.Error, err.Error())
 		slog.Error("embedder warmup failed", "error", err)
+		warmSpan.End()
 		os.Exit(1)
 	}
+	warmSpan.End()
 	slog.Info("embedder warmup completed")
 
 	det := detector.NewDetector(vectorStore, emb, cfg.SimilarityThreshold, cfg.HistorySize)
