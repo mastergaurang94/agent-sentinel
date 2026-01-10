@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"agent-sentinel/internal/providers"
+	"agent-sentinel/internal/telemetry"
 	"agent-sentinel/ratelimit"
 )
 
@@ -74,6 +75,7 @@ func RateLimiting(limiter *ratelimit.RateLimiter, provider providers.Provider, h
 				return
 			}
 
+			estStart := time.Now()
 			inputTokens := ratelimit.CountTokens(requestText, model)
 
 			pricing, found := limiter.GetPricing(provider.Name(), model)
@@ -88,14 +90,16 @@ func RateLimiting(limiter *ratelimit.RateLimiter, provider providers.Provider, h
 			maxOutputFromRequest := ratelimit.ExtractMaxOutputTokens(data)
 			estimatedOutputTokens := ratelimit.EstimateOutputTokens(inputTokens, maxOutputFromRequest)
 			estimatedCost := ratelimit.CalculateCost(inputTokens, estimatedOutputTokens, pricing)
+			telemetry.ObserveEstimateLatency(r.Context(), provider.Name(), model, tenantID, time.Since(estStart))
 
-			ctx := context.Background()
+			ctx := r.Context()
 			result, err := limiter.CheckLimitAndIncrement(ctx, tenantID, estimatedCost)
 			if err != nil {
 				slog.Warn("Rate limit check failed, failing open",
 					"error", err,
 					"tenant_id", tenantID,
 				)
+				telemetry.RecordRateLimitRequest(ctx, "fail_open", "redis_error", provider.Name(), model, tenantID)
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -111,6 +115,7 @@ func RateLimiting(limiter *ratelimit.RateLimiter, provider providers.Provider, h
 					"limit", result.Limit,
 					"estimated_cost", estimatedCost,
 				)
+				telemetry.RecordRateLimitRequest(ctx, "denied", "over_limit", provider.Name(), model, tenantID)
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("Retry-After", "3600")
 				w.WriteHeader(http.StatusTooManyRequests)
@@ -133,6 +138,8 @@ func RateLimiting(limiter *ratelimit.RateLimiter, provider providers.Provider, h
 			ctx = context.WithValue(ctx, ContextKeyProvider, provider)
 			ctx = context.WithValue(ctx, ContextKeyPricing, pricing)
 			r = r.WithContext(ctx)
+
+			telemetry.RecordRateLimitRequest(ctx, "allowed", "ok", provider.Name(), model, tenantID)
 
 			slog.Debug("Rate limit check passed",
 				"tenant_id", tenantID,

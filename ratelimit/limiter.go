@@ -6,6 +6,9 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"time"
+
+	"agent-sentinel/internal/telemetry"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -154,10 +157,13 @@ func (r *RateLimiter) CheckLimitAndIncrement(ctx context.Context, tenantID strin
 
 	client := r.client.Client()
 	script := redis.NewScript(checkLimitAndIncrementLUA)
+	start := time.Now()
 	result, err := script.Run(ctx, client, []string{spendKey, limitKey},
 		estimatedCost, r.defaultLimit).Result()
 
 	if err != nil {
+		telemetry.ObserveRedisLatency(ctx, "check_limit", r.client.Backend(), "error", time.Since(start), tenantID)
+		telemetry.IncRedisError(ctx, "check_limit", r.client.Backend(), tenantID)
 		slog.Warn("Redis error in CheckLimitAndIncrement, failing open",
 			"error", err,
 			"tenant_id", tenantID,
@@ -170,6 +176,8 @@ func (r *RateLimiter) CheckLimitAndIncrement(ctx context.Context, tenantID strin
 			Remaining:    r.defaultLimit,
 		}, nil
 	}
+
+	telemetry.ObserveRedisLatency(ctx, "check_limit", r.client.Backend(), "ok", time.Since(start), tenantID)
 
 	// Parse result from LUA script
 	results := result.([]any)
@@ -197,18 +205,23 @@ func (r *RateLimiter) AdjustCost(ctx context.Context, tenantID string, estimate,
 
 	client := r.client.Client()
 	script := redis.NewScript(adjustCostLUA)
+	start := time.Now()
 
 	err := script.Run(ctx, client, []string{spendKey},
 		estimate, actual).Err()
 
 	if err != nil {
+		telemetry.ObserveRedisLatency(ctx, "adjust_cost", r.client.Backend(), "error", time.Since(start), tenantID)
+		telemetry.IncRedisError(ctx, "adjust_cost", r.client.Backend(), tenantID)
 		slog.Warn("Redis error in AdjustCost",
 			"error", err,
 			"tenant_id", tenantID,
 		)
 		// Fail-open: log but don't fail
+		return nil
 	}
 
+	telemetry.ObserveRedisLatency(ctx, "adjust_cost", r.client.Backend(), "ok", time.Since(start), tenantID)
 	return nil
 }
 
@@ -225,17 +238,22 @@ func (r *RateLimiter) RefundEstimate(ctx context.Context, tenantID string, estim
 	script := redis.NewScript(adjustCostLUA)
 
 	// Pass actual=0 to trigger refund logic (0 - estimate = -estimate)
+	start := time.Now()
 	err := script.Run(ctx, client, []string{spendKey},
 		estimate, 0.0).Err()
 
 	if err != nil {
+		telemetry.ObserveRedisLatency(ctx, "refund_estimate", r.client.Backend(), "error", time.Since(start), tenantID)
+		telemetry.IncRedisError(ctx, "refund_estimate", r.client.Backend(), tenantID)
 		slog.Warn("Redis error in RefundEstimate",
 			"error", err,
 			"tenant_id", tenantID,
 		)
 		// Fail-open: log but don't fail
+		return nil
 	}
 
+	telemetry.ObserveRedisLatency(ctx, "refund_estimate", r.client.Backend(), "ok", time.Since(start), tenantID)
 	return nil
 }
 

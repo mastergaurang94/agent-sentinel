@@ -12,6 +12,7 @@ import (
 	"agent-sentinel/internal/middleware"
 	"agent-sentinel/internal/providers"
 	"agent-sentinel/internal/stream"
+	"agent-sentinel/internal/telemetry"
 	"agent-sentinel/ratelimit"
 )
 
@@ -26,13 +27,14 @@ func CreateModifyResponse(limiter *ratelimit.RateLimiter, provider providers.Pro
 		tenantID, _ := ctx.Value(middleware.ContextKeyTenantID).(string)
 		estimate, _ := ctx.Value(middleware.ContextKeyEstimate).(float64)
 		pricing, _ := ctx.Value(middleware.ContextKeyPricing).(ratelimit.Pricing)
+		model, _ := ctx.Value(middleware.ContextKeyModel).(string)
 
 		if tenantID == "" || estimate == 0 {
 			return nil
 		}
 
 		if stream.IsStreamingResponse(resp) {
-			streamReader := stream.NewStreamingResponseReader(resp.Body, provider.ParseTokenUsage, tenantID, estimate, pricing, limiter)
+			streamReader := stream.NewStreamingResponseReader(resp.Body, provider.ParseTokenUsage, tenantID, estimate, pricing, limiter, provider.Name(), model)
 			resp.Body = streamReader
 			slog.Debug("Streaming response detected, using chunk-based cost tracking",
 				"tenant_id", tenantID,
@@ -76,6 +78,7 @@ func CreateModifyResponse(limiter *ratelimit.RateLimiter, provider providers.Pro
 						"actual", actualCost,
 					)
 				} else {
+					telemetry.ObserveCostDelta(bgCtx, provider.Name(), model, tenantID, actualCost-estimate)
 					slog.Debug("Cost adjusted",
 						"tenant_id", tenantID,
 						"estimate", estimate,
@@ -92,6 +95,7 @@ func CreateModifyResponse(limiter *ratelimit.RateLimiter, provider providers.Pro
 						"estimate", estimate,
 					)
 				} else {
+					telemetry.IncRefund(bgCtx, provider.Name(), model, tenantID, "error_no_usage")
 					slog.Debug("Estimate refunded (error with no usage)",
 						"tenant_id", tenantID,
 						"estimate", estimate,
@@ -116,6 +120,7 @@ func CreateErrorHandler(limiter *ratelimit.RateLimiter) func(http.ResponseWriter
 		ctx := r.Context()
 		tenantID, _ := ctx.Value(middleware.ContextKeyTenantID).(string)
 		estimate, _ := ctx.Value(middleware.ContextKeyEstimate).(float64)
+		model, _ := ctx.Value(middleware.ContextKeyModel).(string)
 
 		if limiter != nil && tenantID != "" && estimate > 0 {
 			async.Run(func() {
@@ -127,6 +132,7 @@ func CreateErrorHandler(limiter *ratelimit.RateLimiter) func(http.ResponseWriter
 						"estimate", estimate,
 					)
 				} else {
+					telemetry.IncRefund(bgCtx, "", model, tenantID, "proxy_error")
 					slog.Debug("Estimate refunded (proxy error)",
 						"tenant_id", tenantID,
 						"estimate", estimate,

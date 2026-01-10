@@ -12,7 +12,8 @@ import (
 
 // RedisClient wraps the Redis client with connection type detection
 type RedisClient struct {
-	client redis.UniversalClient
+	client      redis.UniversalClient
+	backendType string
 }
 
 // NewRedisClient creates a Redis client based on REDIS_URL environment variable
@@ -25,7 +26,7 @@ func NewRedisClient() *RedisClient {
 		return nil
 	}
 
-	client := parseRedisURL(redisURL)
+	client, backend := parseRedisURL(redisURL)
 	if client == nil {
 		slog.Warn("Failed to create Redis client, rate limiting disabled",
 			"redis_url", maskRedisURL(redisURL),
@@ -46,18 +47,18 @@ func NewRedisClient() *RedisClient {
 		"redis_url", maskRedisURL(redisURL),
 	)
 
-	return &RedisClient{client: client}
+	return &RedisClient{client: client, backendType: backend}
 }
 
-// parseRedisURL parses the Redis URL and returns appropriate client
-func parseRedisURL(redisURL string) redis.UniversalClient {
+// parseRedisURL parses the Redis URL and returns appropriate client and backend type.
+func parseRedisURL(redisURL string) (redis.UniversalClient, string) {
 	parsedURL, err := url.Parse(redisURL)
 	if err != nil {
 		slog.Error("Invalid Redis URL format",
 			"error", err,
 			"redis_url", maskRedisURL(redisURL),
 		)
-		return nil
+		return nil, ""
 	}
 
 	switch parsedURL.Scheme {
@@ -69,16 +70,16 @@ func parseRedisURL(redisURL string) redis.UniversalClient {
 				"error", err,
 				"redis_url", maskRedisURL(redisURL),
 			)
-			return nil
+			return nil, ""
 		}
-		return redis.NewClient(opt)
+		return redis.NewClient(opt), "single"
 
 	case "redis-cluster", "rediss-cluster":
 		// Cluster mode - URL format: redis-cluster://node1:6379,node2:6379,node3:6379
 		addrs := strings.Split(parsedURL.Host, ",")
 		if len(addrs) == 0 {
 			slog.Error("No cluster nodes specified in Redis URL")
-			return nil
+			return nil, ""
 		}
 
 		// Parse password from URL if present
@@ -87,14 +88,14 @@ func parseRedisURL(redisURL string) redis.UniversalClient {
 		return redis.NewClusterClient(&redis.ClusterOptions{
 			Addrs:    addrs,
 			Password: password,
-		})
+		}), "cluster"
 
 	case "sentinel":
 		// Sentinel mode - URL format: sentinel://localhost:26379?master=mymaster&password=xxx
 		masterName := parsedURL.Query().Get("master")
 		if masterName == "" {
 			slog.Error("Sentinel master name not specified (use ?master=name)")
-			return nil
+			return nil, ""
 		}
 
 		password, _ := parsedURL.User.Password()
@@ -105,14 +106,14 @@ func parseRedisURL(redisURL string) redis.UniversalClient {
 			SentinelAddrs:    []string{parsedURL.Host},
 			Password:         password,
 			SentinelPassword: sentinelPassword,
-		})
+		}), "sentinel"
 
 	default:
 		slog.Error("Unsupported Redis URL scheme",
 			"scheme", parsedURL.Scheme,
 			"supported", []string{"redis", "rediss", "redis-cluster", "rediss-cluster", "sentinel"},
 		)
-		return nil
+		return nil, ""
 	}
 }
 
@@ -137,6 +138,11 @@ func maskRedisURL(redisURL string) string {
 // Client returns the underlying Redis client
 func (r *RedisClient) Client() redis.UniversalClient {
 	return r.client
+}
+
+// Backend returns the redis backend type (single, cluster, sentinel).
+func (r *RedisClient) Backend() string {
+	return r.backendType
 }
 
 // Close closes the Redis connection

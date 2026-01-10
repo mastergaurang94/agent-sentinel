@@ -11,6 +11,7 @@ import (
 
 	"agent-sentinel/internal/async"
 	"agent-sentinel/internal/providers"
+	"agent-sentinel/internal/telemetry"
 	"agent-sentinel/ratelimit"
 )
 
@@ -34,10 +35,12 @@ type StreamingResponseReader struct {
 	estimate   float64
 	pricing    ratelimit.Pricing
 	limiter    *ratelimit.RateLimiter
+	provider   string
+	model      string
 	finalized  bool
 }
 
-func NewStreamingResponseReader(reader io.ReadCloser, parseUsage func(map[string]any) providers.TokenUsage, tenantID string, estimate float64, pricing ratelimit.Pricing, limiter *ratelimit.RateLimiter) *StreamingResponseReader {
+func NewStreamingResponseReader(reader io.ReadCloser, parseUsage func(map[string]any) providers.TokenUsage, tenantID string, estimate float64, pricing ratelimit.Pricing, limiter *ratelimit.RateLimiter, provider string, model string) *StreamingResponseReader {
 	return &StreamingResponseReader{
 		reader:     reader,
 		parseUsage: parseUsage,
@@ -45,6 +48,8 @@ func NewStreamingResponseReader(reader io.ReadCloser, parseUsage func(map[string
 		estimate:   estimate,
 		pricing:    pricing,
 		limiter:    limiter,
+		provider:   provider,
+		model:      model,
 		buffer:     make([]byte, 0, 4096),
 	}
 }
@@ -154,6 +159,7 @@ func (s *StreamingResponseReader) finalizeCost() {
 					"actual", actualCost,
 				)
 			} else {
+				telemetry.ObserveCostDelta(bgCtx, s.provider, s.model, s.tenantID, actualCost-s.estimate)
 				slog.Debug("Cost adjusted from streaming response",
 					"tenant_id", s.tenantID,
 					"estimate", s.estimate,
@@ -170,6 +176,7 @@ func (s *StreamingResponseReader) finalizeCost() {
 					"estimate", s.estimate,
 				)
 			} else {
+				telemetry.IncRefund(bgCtx, s.provider, s.model, s.tenantID, "stream_error")
 				slog.Debug("Estimate refunded (streaming error with no usage)",
 					"tenant_id", s.tenantID,
 					"estimate", s.estimate,
