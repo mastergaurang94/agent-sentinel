@@ -130,37 +130,12 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 	}
 
 	data := outputTensor.GetData()
-	if len(data) != int(seqLen)*e.dim {
-		err := fmt.Errorf("unexpected output size: got %d want %d", len(data), int(seqLen)*e.dim)
+	pooled, err := meanPool(data, attentionMask, e.dim)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		result = "error"
 		return nil, err
-	}
-
-	// Mean pooling using attention mask to produce a sentence embedding.
-	var pooled = make([]float32, e.dim)
-	var count int
-	for i := int64(0); i < seqLen; i++ {
-		if attentionMask[i] == 0 {
-			continue
-		}
-		count++
-		base := int(i) * e.dim
-		for d := 0; d < e.dim; d++ {
-			pooled[d] += data[base+d]
-		}
-	}
-	if count == 0 {
-		err := errors.New("no tokens after attention masking")
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		result = "error"
-		return nil, err
-	}
-	scale := float32(1.0 / float32(count))
-	for d := 0; d < e.dim; d++ {
-		pooled[d] *= scale
 	}
 	return pooled, nil
 }
@@ -168,4 +143,35 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 func Warmup(embedder Embedding) error {
 	_, err := embedder.Compute("warmup")
 	return err
+}
+
+// meanPool averages token embeddings (data laid out [seqLen * dim]) over tokens with attention mask == 1.
+func meanPool(data []float32, attentionMask []int64, dim int) ([]float32, error) {
+	seqLen := len(attentionMask)
+	if dim <= 0 {
+		return nil, errors.New("invalid dim")
+	}
+	if len(data) != seqLen*dim {
+		return nil, fmt.Errorf("unexpected output size: got %d want %d", len(data), seqLen*dim)
+	}
+	var pooled = make([]float32, dim)
+	var count int
+	for i := 0; i < seqLen; i++ {
+		if attentionMask[i] == 0 {
+			continue
+		}
+		count++
+		base := i * dim
+		for d := 0; d < dim; d++ {
+			pooled[d] += data[base+d]
+		}
+	}
+	if count == 0 {
+		return nil, errors.New("no tokens after attention masking")
+	}
+	scale := float32(1.0 / float32(count))
+	for d := 0; d < dim; d++ {
+		pooled[d] *= scale
+	}
+	return pooled, nil
 }
