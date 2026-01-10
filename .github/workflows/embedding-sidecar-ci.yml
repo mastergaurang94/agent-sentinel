@@ -1,0 +1,50 @@
+name: embedding-sidecar-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "embedding-sidecar/**"
+      - ".github/workflows/embedding-sidecar-ci.yml"
+  pull_request:
+    paths:
+      - "embedding-sidecar/**"
+      - ".github/workflows/embedding-sidecar-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      redis-stack:
+        image: redis/redis-stack:latest
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run embedding sidecar tests
+        working-directory: embedding-sidecar
+        env:
+          REDIS_URL_INTEGRATION: redis://localhost:6380
+        run: go test ./...
+
