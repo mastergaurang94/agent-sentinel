@@ -40,35 +40,19 @@ func (d *Detector) CheckLoop(ctx context.Context, tenantID, prompt string) (Loop
 	)
 	defer span.End()
 
-	_, embedSpan := telemetry.StartSpan(ctx, "embedder.compute")
 	embedding, err := d.embedder.Compute(prompt)
 	if err != nil {
-		embedSpan.RecordError(err)
-		embedSpan.SetStatus(codes.Error, err.Error())
-		embedSpan.End()
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return LoopResult{}, err
 	}
-	embedSpan.End()
 
-	searchCtx, searchSpan := telemetry.StartSpan(ctx, "store.search",
-		attribute.Int("search.limit", d.limit),
-	)
+	records, err := d.store.SearchSimilarEmbeddings(ctx, tenantID, embedding, d.limit)
 	if err != nil {
-		return LoopResult{}, err
-	}
-
-	records, err := d.store.SearchSimilarEmbeddings(searchCtx, tenantID, embedding, d.limit)
-	if err != nil {
-		searchSpan.RecordError(err)
-		searchSpan.SetStatus(codes.Error, err.Error())
-		searchSpan.End()
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return LoopResult{}, err
 	}
-	searchSpan.End()
 
 	var (
 		maxSim        float64

@@ -1,13 +1,18 @@
 package embedder
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"unicode"
 
+	"embedding-sidecar/internal/telemetry"
+
 	"github.com/yalue/onnxruntime_go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type Embedding interface {
@@ -56,6 +61,12 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 	if text == "" {
 		return nil, errors.New("empty text")
 	}
+	ctx := context.Background()
+	ctx, span := telemetry.StartSpan(ctx, "embedder.compute",
+		attribute.Int("embedder.dim", e.dim),
+		attribute.String("embedder.output_name", e.outputName),
+	)
+	defer span.End()
 	inputIDs, attentionMask := e.tokenizer.Encode(text)
 
 	inputTensor, err := onnxruntime_go.NewTensor[int64](onnxruntime_go.Shape{1, int64(len(inputIDs))}, inputIDs)
@@ -72,6 +83,8 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 	outputBuffer := make([]float32, e.dim)
 	outputTensor, err := onnxruntime_go.NewTensor[float32](onnxruntime_go.Shape{1, int64(e.dim)}, outputBuffer)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("create output tensor: %w", err)
 	}
 
@@ -79,17 +92,24 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 	outputVals := []onnxruntime_go.Value{outputTensor}
 	session, err := onnxruntime_go.NewAdvancedSession(e.modelPath, inputNames, outputNames, inputVals, outputVals, nil)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("create onnx session: %w", err)
 	}
 	defer session.Destroy()
 
 	if err := session.Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("onnx run: %w", err)
 	}
 
 	data := outputTensor.GetData()
 	if len(data) != e.dim {
-		return nil, fmt.Errorf("unexpected embedding dim: got %d want %d", len(data), e.dim)
+		err := fmt.Errorf("unexpected embedding dim: got %d want %d", len(data), e.dim)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
 	}
 	return data, nil
 }
