@@ -4,12 +4,6 @@ This document tracks future enhancements and improvements for Agent Sentinel.
 
 ## Telemetry / Logging Enhancements
 
-### Add Additional Telemetry Metrics
-- [x] **Goroutine Metrics**: Add OpenTelemetry metrics for async operations
-  - Track async operation queue depth
-  - Measure async operation latency
-  - Monitor semaphore utilization
-  
 - **Tenant ID hashing middleware**: add upstream hashing of tenant IDs before metrics labeling / logging
 
 
