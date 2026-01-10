@@ -25,4 +25,5 @@ Quick reference for wiring dashboards and alerts (OTLP export only).
 
 ## Notes
 - OTLP export only; Prometheus export and dashboards remain to be added.
+- Trace sampling: currently default is always_on. For production, set `OTEL_TRACES_SAMPLER=traceidratio` and `OTEL_TRACES_SAMPLER_ARG=0.05` (or desired rate) on both proxy and sidecar via `docker-compose.yml` env overrides. Metrics are unaffected by trace sampling.
 
