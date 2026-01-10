@@ -1,7 +1,9 @@
-# Proxy Usage & Testing
+# Proxy Usage
+
+Run the Agent Sentinel proxy locally, exercise Gemini/OpenAI flows, and validate rate limiting plus loop detection.
 
 ## Prerequisites
-- Docker & Docker Compose
+- Docker and Docker Compose
 - `.env` with:
   - `GEMINI_API_KEY` (and optionally `OPENAI_API_KEY`)
   - `TARGET_API` (`gemini` or `openai`)
@@ -11,32 +13,30 @@
     MODEL_SHA256=6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452
     ```
 
-## Bring up the stack
+## Start the stack
 ```bash
 docker compose up -d --build
 ```
 Services:
-- `agent-sentinel` (proxy) on `localhost:8080`
+- Proxy on `localhost:8080`
 - `redis` for rate limiting
-- `redis-embedding` and `embedding-sidecar` for loop detection
+- `redis-embedding` + `embedding-sidecar` for loop detection (gRPC over UDS)
 
-## List available Gemini models
-```bash
-curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY" \
-  | jq -r '.models[] | select(.displayName|test("flash";"i")) | .name'
-```
+## Quick checks
+- List Gemini models:
+  ```bash
+  curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY" \
+    | jq -r '.models[] | select(.displayName|test("flash";"i")) | .name'
+  ```
 
-## Sample requests (Gemini flash)
-```bash
-curl -i -X POST http://localhost:8080/v1beta/models/gemini-flash-latest:generateContent \
-  -H "Content-Type: application/json" \
-  -H "X-Tenant-ID: demo-tenant" \
-  -d '{"contents":[{"parts":[{"text":"Say hello in 3 languages"}]}]}'
-```
-
-To exercise an error/refund path, use an invalid model name; rate-limit headers will still be returned and cost will refund on 4xx/5xx with no usage.
-
-## Testing checklist (proxy)
+- Basic request (Gemini flash):
+  ```bash
+  curl -i -X POST http://localhost:8080/v1beta/models/gemini-flash-latest:generateContent \
+    -H "Content-Type: application/json" \
+    -H "X-Tenant-ID: demo-tenant" \
+    -d '{"contents":[{"parts":[{"text":"Say hello in 3 languages"}]}]}'
+  ```
+  Expect 200, rate-limit headers, and a small spend recorded for `spend:demo-tenant`.
 
 1) Success + cost adjust  
 ```bash
@@ -77,7 +77,8 @@ curl -i -X POST http://localhost:8080/v1beta/models/gemini-flash-latest:generate
 Expect 429 with rate-limit headers; Redis `spend:limit-tenant` shows small spend; limit key enforced.
 
 ## Notes
-- Rate limiting: tenant ID header defaults to `X-Tenant-ID` (configurable via `RATE_LIMIT_HEADER`).
-- Streaming: SSE responses are cost-adjusted incrementally via the streaming reader.
-- Loop detection: the proxy will call the embedding sidecar over UDS (configure `LOOP_EMBEDDING_SIDECAR_UDS` if needed). The sidecar is built with the ONNX model baked into the image.
+- `X-Tenant-ID` is the default tenant header; override with `RATE_LIMIT_HEADER` if needed.
+- Streaming responses are cost-adjusted incrementally.
+- Loop detection calls the embedding sidecar via UDS (`LOOP_EMBEDDING_SIDECAR_UDS`), and the proxy fail-opens if the sidecar is down.
+- OTLP tracing can be enabled with `OTEL_EXPORTER_OTLP_ENDPOINT`; spans avoid recording prompt content.
 

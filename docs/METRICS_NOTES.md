@@ -1,6 +1,6 @@
 # Metrics Notes (Proxy + Sidecar)
 
-Quick reference for dashboarding and alert wiring.
+Quick reference for wiring dashboards and alerts (OTLP export only).
 
 ## Proxy
 - `ratelimit.requests` (counter): result=allowed|denied|fail_open, reason=over_limit|redis_error|ok, provider, model, tenant.id
