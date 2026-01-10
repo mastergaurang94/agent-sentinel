@@ -20,6 +20,11 @@ import (
 
 var tracer trace.Tracer
 
+// Tracer returns the configured tracer (may be a noop).
+func Tracer() trace.Tracer {
+	return tracer
+}
+
 // InitTracing configures OpenTelemetry if endpoint is provided.
 func InitTracing() func(context.Context) error {
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")

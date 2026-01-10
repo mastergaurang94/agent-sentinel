@@ -10,6 +10,11 @@ import (
 
 	"agent-sentinel/internal/loopdetect"
 	"agent-sentinel/internal/providers"
+	"agent-sentinel/internal/telemetry"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // LoopDetection middleware calls the embedding sidecar to detect loops and injects a hint on detection.
@@ -19,6 +24,14 @@ func LoopDetection(client *loopdetect.Client, provider providers.Provider, heade
 			if client == nil || provider == nil || r.Method != http.MethodPost {
 				next.ServeHTTP(w, r)
 				return
+			}
+
+			ctx := r.Context()
+			tr := telemetry.Tracer()
+			var span trace.Span
+			if tr != nil {
+				ctx, span = tr.Start(ctx, "loop_detection.middleware")
+				defer span.End()
 			}
 
 			tenantID := r.Header.Get(headerName)
@@ -47,13 +60,23 @@ func LoopDetection(client *loopdetect.Client, provider providers.Provider, heade
 				return
 			}
 
-			resp, err := client.Check(r.Context(), tenantID, prompt)
+			resp, err := client.Check(ctx, tenantID, prompt)
 			if err != nil {
 				slog.Warn("loop detect: sidecar check failed (fail-open)", "error", err)
+				if span != nil {
+					span.RecordError(err)
+					span.SetStatus(codes.Error, err.Error())
+				}
 				next.ServeHTTP(w, r)
 				return
 			}
 			if !resp.GetLoopDetected() {
+				if span != nil {
+					span.SetAttributes(
+						attribute.Bool("loop.detected", false),
+						attribute.Float64("loop.max_similarity", resp.GetMaxSimilarity()),
+					)
+				}
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -67,8 +90,19 @@ func LoopDetection(client *loopdetect.Client, provider providers.Provider, heade
 				}
 			}
 
+			if span != nil {
+				span.SetAttributes(
+					attribute.Bool("loop.detected", true),
+					attribute.Float64("loop.max_similarity", resp.GetMaxSimilarity()),
+				)
+			}
 			slog.Info("loop detected", "tenant_id", tenantID, "max_similarity", resp.GetMaxSimilarity(), "similar_prompt", resp.GetSimilarPrompt())
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// telemetryTracer returns the global tracer; separated for testability.
+func telemetryTracer() trace.Tracer {
+	return telemetry.Tracer()
 }

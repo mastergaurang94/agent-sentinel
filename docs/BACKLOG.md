@@ -19,10 +19,7 @@ This document tracks future enhancements and improvements for Agent Sentinel.
   - Measure Redis operation latency
   - Monitor cost estimation accuracy (estimate vs actual)
   
-- [ ] **Prometheus Metrics**: Export Prometheus metrics in addition to OTLP
-  - Standard Prometheus format for compatibility with existing tooling
-
-  - Proxy-side span/metrics for the sidecar call (fail-open tagging, loop_detected, similarity).
+- [ ] **Proxy-side span/metrics** for the sidecar call (fail-open tagging, loop_detected, similarity).
 
 ## Testing
 
