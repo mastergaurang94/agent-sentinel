@@ -34,6 +34,36 @@ jobs:
         with:
           go-version: "1.24"
 
+      - name: Cache model and vocab
+        uses: actions/cache@v4
+        with:
+          path: embedding-sidecar/models
+          key: model-cache-${{ env.MODEL_URL }}-${{ env.MODEL_SHA256 }}-${{ env.VOCAB_URL }}
+          restore-keys: |
+            model-cache-
+
+      - name: Download model and vocab if missing
+        working-directory: embedding-sidecar
+        env:
+          MODEL_URL: ${{ env.MODEL_URL }}
+          MODEL_SHA256: ${{ env.MODEL_SHA256 }}
+          VOCAB_URL: ${{ env.VOCAB_URL }}
+        run: |
+          mkdir -p models
+          if [ ! -f models/all-MiniLM-L6-v2.onnx ]; then
+            if [ -z "$MODEL_URL" ] || [ -z "$MODEL_SHA256" ]; then
+              echo "MODEL_URL and MODEL_SHA256 must be set for model download" && exit 1
+            fi
+            curl -fL "$MODEL_URL" -o models/all-MiniLM-L6-v2.onnx
+            echo "$MODEL_SHA256  models/all-MiniLM-L6-v2.onnx" | sha256sum -c -
+          fi
+          if [ ! -f models/vocab.txt ]; then
+            if [ -z "$VOCAB_URL" ]; then
+              echo "VOCAB_URL must be set for vocab download" && exit 1
+            fi
+            curl -fL "$VOCAB_URL" -o models/vocab.txt
+          fi
+
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
