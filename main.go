@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
@@ -16,9 +15,10 @@ import (
 
 	"agent-sentinel/internal/async"
 	"agent-sentinel/internal/config"
-	"agent-sentinel/internal/handlers"
 	"agent-sentinel/internal/loopdetect"
 	"agent-sentinel/internal/middleware"
+	"agent-sentinel/internal/providers/gemini"
+	"agent-sentinel/internal/providers/openai"
 	"agent-sentinel/internal/telemetry"
 	"agent-sentinel/ratelimit"
 )
@@ -46,60 +46,45 @@ func main() {
 		slog.Info("Rate limiting disabled (Redis not available)")
 	}
 
-	targetAPI := os.Getenv("TARGET_API")
+	targetAPI := strings.ToLower(os.Getenv("TARGET_API"))
 	geminiKey := os.Getenv("GEMINI_API_KEY")
 	openAIKey := os.Getenv("OPENAI_API_KEY")
 
-	var targetURL *url.URL
-	var apiKey string
-	var apiName string
-
+	var provider interface {
+		Name() string
+		BaseURL() *url.URL
+		PrepareRequest(req *http.Request)
+	}
 	if targetAPI == "openai" || (targetAPI == "" && openAIKey != "" && geminiKey == "") {
 		if openAIKey == "" {
 			slog.Error("OPENAI_API_KEY environment variable is not set")
 			os.Exit(1)
 		}
-		apiKey = openAIKey
-		apiName = "OpenAI"
-		var err error
-		targetURL, err = url.Parse("https://api.openai.com")
+		p, err := openai.New(openAIKey)
 		if err != nil {
-			slog.Error("Failed to parse target URL", "error", err)
+			slog.Error("Failed to init OpenAI provider", "error", err)
 			os.Exit(1)
 		}
+		provider = p
 	} else {
 		if geminiKey == "" {
 			slog.Error("GEMINI_API_KEY environment variable is not set")
 			os.Exit(1)
 		}
-		apiKey = geminiKey
-		apiName = "Gemini"
-		var err error
-		targetURL, err = url.Parse("https://generativelanguage.googleapis.com")
+		p, err := gemini.New(geminiKey)
 		if err != nil {
-			slog.Error("Failed to parse target URL", "error", err)
+			slog.Error("Failed to init Gemini provider", "error", err)
 			os.Exit(1)
 		}
+		provider = p
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(targetURL)
-
+	proxy := httputil.NewSingleHostReverseProxy(provider.BaseURL())
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		originalDirector(req)
-		req.Host = targetURL.Host
-
-		if apiName == "OpenAI" {
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
-		} else {
-			q := req.URL.Query()
-			q.Set("key", apiKey)
-			req.URL.RawQuery = q.Encode()
-		}
+		provider.PrepareRequest(req)
 	}
-
-	proxy.ModifyResponse = handlers.CreateModifyResponse(rateLimiter)
-	proxy.ErrorHandler = handlers.CreateErrorHandler(rateLimiter)
 
 	rateLimitHeader := os.Getenv("RATE_LIMIT_HEADER")
 	if rateLimitHeader == "" {
@@ -128,18 +113,18 @@ func main() {
 		slog.Info("Loop detection enabled", "uds", loopUDS, "timeout_ms", loopTimeoutMs)
 	}
 
-	// Build middleware chain (order: tracing -> rate limiting -> logging -> proxy)
+	// Build middleware chain (order: tracing -> rate limiting -> loop detection -> logging -> proxy)
 	var handler http.Handler = proxy
 	handler = middleware.Logging(handler)
 	handler = middleware.LoopDetection(loopClient, rateLimitHeader, loopHint)(handler)
-	handler = middleware.RateLimiting(rateLimiter, strings.ToLower(apiName), rateLimitHeader)(handler)
+	handler = middleware.RateLimiting(rateLimiter, provider.Name(), rateLimitHeader)(handler)
 	handler = telemetry.Middleware(handler)
 
 	port := ":8080"
 	slog.Info("Agent Sentinel proxy started",
 		"port", port,
-		"target_api", apiName,
-		"target_url", targetURL.String(),
+		"target_api", provider.Name(),
+		"target_url", provider.BaseURL().String(),
 	)
 
 	// Graceful shutdown handling

@@ -77,22 +77,28 @@ func mutateRequestWithHint(data map[string]any, hint string) bool {
 	if hint == "" {
 		return false
 	}
-	contents, ok := data["contents"].([]any)
-	if !ok || len(contents) == 0 {
-		return false
+
+	// Gemini-style: contents.parts[].text
+	if contents, ok := data["contents"].([]any); ok && len(contents) > 0 {
+		if first, ok := contents[0].(map[string]any); ok {
+			partsAny, ok := first["parts"].([]any)
+			if !ok {
+				partsAny = []any{}
+			}
+			hintPart := map[string]any{"text": hint}
+			first["parts"] = append([]any{hintPart}, partsAny...)
+			contents[0] = first
+			data["contents"] = contents
+			return true
+		}
 	}
-	first, ok := contents[0].(map[string]any)
-	if !ok {
-		return false
+
+	// OpenAI-style: messages[].content string (prepend system role)
+	if msgs, ok := data["messages"].([]any); ok {
+		hintMsg := map[string]any{"role": "system", "content": hint}
+		data["messages"] = append([]any{hintMsg}, msgs...)
+		return true
 	}
-	partsAny, ok := first["parts"].([]any)
-	if !ok {
-		partsAny = []any{}
-	}
-	hintPart := map[string]any{"text": hint}
-	partsAny = append([]any{hintPart}, partsAny...)
-	first["parts"] = partsAny
-	contents[0] = first
-	data["contents"] = contents
-	return true
+
+	return false
 }
