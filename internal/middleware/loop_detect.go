@@ -66,11 +66,11 @@ func LoopDetection(client *loopdetect.Client, provider providers.Provider, heade
 				next.ServeHTTP(w, r)
 				return
 			}
-			if !resp.GetLoopDetected() {
+			if resp == nil || !resp.GetLoopDetected() {
 				if span != nil {
 					span.SetAttributes(
 						attribute.Bool("loop.detected", false),
-						attribute.Float64("loop.max_similarity", resp.GetMaxSimilarity()),
+						attribute.Float64("loop.max_similarity", 0),
 					)
 				}
 				next.ServeHTTP(w, r)

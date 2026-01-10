@@ -49,10 +49,9 @@ func New(udsPath string, timeout time.Duration) (*Client, error) {
 }
 
 // Check calls the sidecar for loop detection. Fail-open on error.
-func (c *Client) Check(ctx context.Context, tenantID, prompt string) (pb.CheckLoopResponse, error) {
-	var empty pb.CheckLoopResponse
+func (c *Client) Check(ctx context.Context, tenantID, prompt string) (*pb.CheckLoopResponse, error) {
 	if c == nil || c.client == nil || prompt == "" || tenantID == "" {
-		return empty, nil
+		return nil, nil
 	}
 	start := time.Now()
 	ctx, span := telemetry.StartSpan(ctx, "loop_detection.call",
@@ -79,7 +78,7 @@ func (c *Client) Check(ctx context.Context, tenantID, prompt string) (pb.CheckLo
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 		}
-		return empty, err
+		return nil, err
 	}
 	dur := time.Since(start)
 	if span != nil && resp != nil {
@@ -90,5 +89,5 @@ func (c *Client) Check(ctx context.Context, tenantID, prompt string) (pb.CheckLo
 		)
 	}
 	slog.Debug("loop detect rpc", "tenant_id", tenantID, "duration_ms", dur.Milliseconds(), "timeout_ms", c.timeout.Milliseconds())
-	return *resp, nil
+	return resp, nil
 }
