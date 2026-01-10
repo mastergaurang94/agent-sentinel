@@ -30,4 +30,20 @@ Notes:
 - gRPC health is exposed, e.g.:
   - `grpcurl -unix /sockets/embedding-sidecar.sock -plaintext grpc.health.v1.Health/Check`
 
+## Manual loop-detection sanity check (proxy + sidecar)
+1) Start the full stack: `docker compose up -d --build`
+2) Use a supported Gemini model (example from current account): `models/gemini-2.5-flash`
+3) Send the same prompt twice to trigger loop detection and hint injection:
+   ```bash
+   curl -i -X POST http://localhost:8080/v1beta/models/gemini-2.5-flash:generateContent \
+     -H "Content-Type: application/json" \
+     -H "X-Tenant-ID: loop-tenant" \
+     -d '{"contents":[{"parts":[{"text":"List three fruits"}]}]}'
+   # repeat the same command a second time
+   ```
+4) Expected:
+   - Second response still 200, but content reflects the injected hint (different phrasing).
+   - Proxy log shows `loop detected` for tenant `loop-tenant`.
+   - Sidecar log stays clean (no warmup errors); fail-open should NOT occur once sidecar is healthy.
+
 
