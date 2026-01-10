@@ -8,14 +8,14 @@ import (
 
 func TestLoadAndEncodeWordpiece(t *testing.T) {
 	vocab := `[PAD]
-[UNK]
-[CLS]
-[SEP]
-hello
-world
-##s
-!
-`
+	[UNK]
+	[CLS]
+	[SEP]
+	hello
+	world
+	##s
+	!
+	`
 	tmpDir := t.TempDir()
 	vocabPath := filepath.Join(tmpDir, "vocab.txt")
 	if err := os.WriteFile(vocabPath, []byte(vocab), 0o644); err != nil {
@@ -56,11 +56,11 @@ world
 
 func TestWordpieceUnknownFallsBack(t *testing.T) {
 	vocab := `[PAD]
-[UNK]
-[CLS]
-[SEP]
-hello
-`
+	[UNK]
+	[CLS]
+	[SEP]
+	hello
+	`
 	tmpDir := t.TempDir()
 	vocabPath := filepath.Join(tmpDir, "vocab.txt")
 	if err := os.WriteFile(vocabPath, []byte(vocab), 0o644); err != nil {
