@@ -18,8 +18,7 @@ This document tracks future enhancements and improvements for Agent Sentinel.
   - Track rate limit checks (allowed/denied)
   - Measure Redis operation latency
   - Monitor cost estimation accuracy (estimate vs actual)
-  
-- [ ] **Proxy-side span/metrics** for the sidecar call (fail-open tagging, loop_detected, similarity).
+
 
 ## Testing
 
