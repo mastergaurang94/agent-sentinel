@@ -31,7 +31,7 @@ func Load() Config {
 		EmbeddingModelPath:  getEnv("LOOP_EMBEDDING_MODEL_PATH", "models/all-MiniLM-L6-v2.onnx"),
 		EmbeddingVocabPath:  getEnv("LOOP_EMBEDDING_VOCAB_PATH", "models/vocab.txt"),
 		EmbeddingDim:        getEnvInt("LOOP_EMBEDDING_DIM", 384),
-		EmbeddingOutputName: getEnv("LOOP_EMBEDDING_OUTPUT_NAME", "sentence_embedding"),
+		EmbeddingOutputName: getEnv("LOOP_EMBEDDING_OUTPUT_NAME", "last_hidden_state"),
 		GRPCTimeout:         time.Duration(getEnvInt("LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS", 50)) * time.Millisecond,
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -31,6 +32,9 @@ type onnxEmbedder struct {
 
 const DefaultEmbeddingDim = 384
 
+var runtimeInitOnce sync.Once
+var runtimeInitErr error
+
 func NewONNXEmbedder(modelPath string, vocabPath string, outputName string, dim int) (Embedding, error) {
 	if modelPath == "" {
 		return nil, errors.New("model path not provided")
@@ -49,6 +53,12 @@ func NewONNXEmbedder(modelPath string, vocabPath string, outputName string, dim 
 		return nil, fmt.Errorf("load tokenizer: %w", err)
 	}
 	onnxruntime_go.SetSharedLibraryPath("/usr/local/lib/libonnxruntime.so")
+	runtimeInitOnce.Do(func() {
+		runtimeInitErr = onnxruntime_go.InitializeEnvironment()
+	})
+	if runtimeInitErr != nil {
+		return nil, fmt.Errorf("init onnx runtime: %w", runtimeInitErr)
+	}
 	return &onnxEmbedder{
 		modelPath:  modelPath,
 		tokenizer:  tokenizer,
@@ -80,16 +90,23 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 		result = "error"
 		return nil, fmt.Errorf("create input_ids tensor: %w", err)
 	}
+	tokenTypeIDs := make([]int64, len(inputIDs)) // all zeros
+	typeTensor, err := onnxruntime_go.NewTensor[int64](onnxruntime_go.Shape{1, int64(len(tokenTypeIDs))}, tokenTypeIDs)
+	if err != nil {
+		result = "error"
+		return nil, fmt.Errorf("create token_type_ids tensor: %w", err)
+	}
 	maskTensor, err := onnxruntime_go.NewTensor[int64](onnxruntime_go.Shape{1, int64(len(attentionMask))}, attentionMask)
 	if err != nil {
 		result = "error"
 		return nil, fmt.Errorf("create attention_mask tensor: %w", err)
 	}
 
-	inputNames := []string{"input_ids", "attention_mask"}
+	inputNames := []string{"input_ids", "token_type_ids", "attention_mask"}
 	outputNames := []string{e.outputName}
-	outputBuffer := make([]float32, e.dim)
-	outputTensor, err := onnxruntime_go.NewTensor[float32](onnxruntime_go.Shape{1, int64(e.dim)}, outputBuffer)
+	seqLen := int64(len(attentionMask))
+	outputBuffer := make([]float32, int(seqLen)*e.dim)
+	outputTensor, err := onnxruntime_go.NewTensor[float32](onnxruntime_go.Shape{1, seqLen, int64(e.dim)}, outputBuffer)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -97,7 +114,7 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 		return nil, fmt.Errorf("create output tensor: %w", err)
 	}
 
-	inputVals := []onnxruntime_go.Value{inputTensor, maskTensor}
+	inputVals := []onnxruntime_go.Value{inputTensor, typeTensor, maskTensor}
 	outputVals := []onnxruntime_go.Value{outputTensor}
 	session, err := onnxruntime_go.NewAdvancedSession(e.modelPath, inputNames, outputNames, inputVals, outputVals, nil)
 	if err != nil {
@@ -116,14 +133,39 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 	}
 
 	data := outputTensor.GetData()
-	if len(data) != e.dim {
-		err := fmt.Errorf("unexpected embedding dim: got %d want %d", len(data), e.dim)
+	if len(data) != int(seqLen)*e.dim {
+		err := fmt.Errorf("unexpected output size: got %d want %d", len(data), int(seqLen)*e.dim)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		result = "error"
 		return nil, err
 	}
-	return data, nil
+
+	// Mean pooling using attention mask to produce a sentence embedding.
+	var pooled = make([]float32, e.dim)
+	var count int
+	for i := int64(0); i < seqLen; i++ {
+		if attentionMask[i] == 0 {
+			continue
+		}
+		count++
+		base := int(i) * e.dim
+		for d := 0; d < e.dim; d++ {
+			pooled[d] += data[base+d]
+		}
+	}
+	if count == 0 {
+		err := errors.New("no tokens after attention masking")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		result = "error"
+		return nil, err
+	}
+	scale := float32(1.0 / float32(count))
+	for d := 0; d < e.dim; d++ {
+		pooled[d] *= scale
+	}
+	return pooled, nil
 }
 
 func Warmup(embedder Embedding) error {

@@ -1,40 +1,48 @@
-FROM golang:1.24-alpine AS build
+FROM golang:1.24-bookworm AS build
 
 WORKDIR /app
 
 # Install build dependencies
-RUN apk add --no-cache build-base git curl tar
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    build-essential git curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY go.mod go.sum ./ 
+COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
 # Install ONNX Runtime (CPU) libs
-ENV ONNXRUNTIME_VERSION=1.18.0
+ENV ONNXRUNTIME_VERSION=1.23.0
 RUN curl -L -o /tmp/onnxruntime.tgz https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz \
     && tar -xzf /tmp/onnxruntime.tgz -C /tmp \
     && mkdir -p /usr/local/lib /usr/local/include \
     && cp -r /tmp/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}/lib/* /usr/local/lib/ \
     && cp -r /tmp/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}/include/* /usr/local/include/ \
+    && ln -sf /usr/local/lib/libonnxruntime.so.${ONNXRUNTIME_VERSION} /usr/local/lib/libonnxruntime.so \
     && rm -rf /tmp/onnxruntime.tgz /tmp/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}
 
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o embedding-sidecar .
 
-FROM alpine:3.20
+FROM debian:bookworm-slim
+
+SHELL ["/bin/bash", "-c"]
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates curl
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates curl libstdc++6 libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 
 # ONNX Runtime libs
-ENV ONNXRUNTIME_VERSION=1.18.0
+ENV ONNXRUNTIME_VERSION=1.23.0
 RUN curl -L -o /tmp/onnxruntime.tgz https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz \
     && tar -xzf /tmp/onnxruntime.tgz -C /tmp \
     && mkdir -p /usr/local/lib \
     && cp -r /tmp/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}/lib/* /usr/local/lib/ \
+    && ln -sf /usr/local/lib/libonnxruntime.so.${ONNXRUNTIME_VERSION} /usr/local/lib/libonnxruntime.so \
     && rm -rf /tmp/onnxruntime.tgz /tmp/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}
 
 ARG MODEL_URL
