@@ -14,6 +14,7 @@ import (
 
 	"agent-sentinel/internal/async"
 	"agent-sentinel/internal/config"
+	"agent-sentinel/internal/handlers"
 	"agent-sentinel/internal/loopdetect"
 	"agent-sentinel/internal/middleware"
 	providerspkg "agent-sentinel/internal/providers"
@@ -81,6 +82,8 @@ func main() {
 		originalDirector(req)
 		provider.PrepareRequest(req)
 	}
+	proxy.ModifyResponse = handlers.CreateModifyResponse(rateLimiter)
+	proxy.ErrorHandler = handlers.CreateErrorHandler(rateLimiter)
 
 	rateLimitHeader := os.Getenv("RATE_LIMIT_HEADER")
 	if rateLimitHeader == "" {
