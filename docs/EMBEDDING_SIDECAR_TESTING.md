@@ -29,6 +29,12 @@ Notes:
 - If `REDIS_URL_INTEGRATION` is unset, tests default to `redis://localhost:6380`.
 - Tests will skip if Redis Stack is unreachable or the VSS index cannot be created.
 
+## Telemetry and health (optional)
+- Set `OTEL_EXPORTER_OTLP_ENDPOINT` to enable tracing (OTLP gRPC).
+- Spans cover embedder compute and Redis search/store; prompt content is not recorded.
+- Health: gRPC health service is registered; for example:
+  - `grpcurl -unix /sockets/embedding-sidecar.sock -plaintext grpc.health.v1.Health/Check`
+
 ## What’s covered
 
 - Redis VSS store/search KNN flow (`store_integration_test.go`)
