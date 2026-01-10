@@ -17,12 +17,14 @@ type Config struct {
 	EmbeddingDim        int
 	EmbeddingOutputName string
 	GRPCTimeout         time.Duration
+	EmbeddingRedisURL   string
 }
 
 func Load() Config {
 	return Config{
 		UDSPath:             getEnv("UDS_PATH", "/tmp/embedding-sidecar.sock"),
 		RedisURL:            getEnv("REDIS_URL", "redis://localhost:6379"),
+		EmbeddingRedisURL:   getEnv("EMBEDDING_REDIS_URL", getEnv("REDIS_URL", "redis://localhost:6379")),
 		SimilarityThreshold: getEnvFloat("LOOP_SIMILARITY_THRESHOLD", 0.95),
 		HistorySize:         getEnvInt("LOOP_HISTORY_SIZE", 5),
 		EmbeddingTTL:        time.Duration(getEnvInt("LOOP_EMBEDDING_TTL", 3600)) * time.Second,

@@ -30,7 +30,7 @@ func main() {
 	shutdownTracing := telemetry.Init("embedding-sidecar")
 	defer shutdownTracing(context.Background())
 
-	vectorStore, err := store.NewVectorStore(cfg.RedisURL, cfg.EmbeddingTTL, cfg.HistorySize, cfg.EmbeddingDim)
+	vectorStore, err := store.NewVectorStore(cfg.EmbeddingRedisURL, cfg.EmbeddingTTL, cfg.HistorySize, cfg.EmbeddingDim)
 	if err != nil {
 		slog.Error("failed to init redis", "error", err)
 		os.Exit(1)
