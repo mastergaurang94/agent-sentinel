@@ -35,10 +35,4 @@ Notes:
 - Health: gRPC health service is registered; for example:
   - `grpcurl -unix /sockets/embedding-sidecar.sock -plaintext grpc.health.v1.Health/Check`
 
-## What’s covered
-
-- Redis VSS store/search KNN flow (`store_integration_test.go`)
-- gRPC UDS end-to-end CheckLoop (`grpc_integration_test.go`)
-- Warmup behavior before serving (`warmup_test.go`)
-
 
