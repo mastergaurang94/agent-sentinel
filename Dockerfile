@@ -6,13 +6,11 @@ WORKDIR /build
 # Install git (needed for some Go dependencies)
 RUN apk add --no-cache git
 
-# Copy go mod files
-COPY go.mod ./
-COPY go.sum* ./
-RUN go mod download
-
-# Copy source code
+# Copy source code (includes go.mod/go.sum and replaced modules)
 COPY . .
+
+# Download dependencies
+RUN go mod download
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o agent-sentinel .
