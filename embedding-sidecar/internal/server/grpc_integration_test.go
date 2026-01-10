@@ -13,6 +13,7 @@ import (
 	storepkg "embedding-sidecar/internal/store"
 	pb "embedding-sidecar/proto"
 
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -38,6 +39,14 @@ func TestGRPCIntegration_CheckLoop(t *testing.T) {
 	ctx := context.Background()
 	if err := vectorStore.EnsureIndex(ctx); err != nil {
 		t.Skipf("skipping: redis index not available (%v)", err)
+	}
+	// Clean previous test data for predictable similarity results.
+	if opts, err := redis.ParseURL(redisURL); err == nil {
+		client := redis.NewClient(opts)
+		keys, _ := client.Keys(ctx, "loop:*").Result()
+		if len(keys) > 0 {
+			_ = client.Del(ctx, keys...).Err()
+		}
 	}
 
 	vec := make([]float32, embedder.DefaultEmbeddingDim)
