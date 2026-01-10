@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"embedding-sidecar/internal/embedder"
+	"embedding-sidecar/internal/telemetry"
 
 	"github.com/redis/go-redis/v9"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 )
@@ -30,8 +30,6 @@ type VectorStore struct {
 	keep   int
 	dim    int
 }
-
-var tracer = otel.Tracer("embedding-sidecar/store")
 
 type EmbeddingRecord struct {
 	Prompt     string
@@ -53,6 +51,9 @@ func NewVectorStore(redisURL string, ttl time.Duration, keep int, dim int) (*Vec
 }
 
 func (s *VectorStore) EnsureIndex(ctx context.Context) error {
+	ctx, span := telemetry.StartSpan(ctx, "redis.ensure_index")
+	defer span.End()
+
 	_, err := s.client.Do(ctx, "FT.INFO", redisIndexName).Result()
 	if err == nil {
 		return nil
@@ -70,16 +71,20 @@ func (s *VectorStore) EnsureIndex(ctx context.Context) error {
 		"DIM", s.dim,
 		"DISTANCE_METRIC", "COSINE",
 	}
-	return s.client.Do(ctx, args...).Err()
+	if err := s.client.Do(ctx, args...).Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (s *VectorStore) StoreEmbedding(ctx context.Context, tenantID, prompt string, embedding []float32) error {
-	ctx, span := tracer.Start(ctx, "StoreEmbedding")
-	defer span.End()
-	span.SetAttributes(
+	ctx, span := telemetry.StartSpan(ctx, "redis.store_embedding",
 		attribute.String("tenant.id", tenantID),
-		attribute.Int("embedding.dim", s.dim),
 	)
+	defer span.End()
+
 	if len(embedding) != s.dim {
 		return fmt.Errorf("embedding dimension mismatch: got %d want %d", len(embedding), s.dim)
 	}
@@ -132,13 +137,12 @@ func (s *VectorStore) pruneOldEmbeddings(ctx context.Context, tenantID string, k
 }
 
 func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID string, queryEmbedding []float32, limit int) ([]EmbeddingRecord, error) {
-	ctx, span := tracer.Start(ctx, "SearchSimilarEmbeddings")
-	defer span.End()
-	span.SetAttributes(
+	ctx, span := telemetry.StartSpan(ctx, "redis.search_embeddings",
 		attribute.String("tenant.id", tenantID),
-		attribute.Int("limit", limit),
-		attribute.Int("embedding.dim", s.dim),
+		attribute.Int("search.limit", limit),
 	)
+	defer span.End()
+
 	if len(queryEmbedding) != s.dim {
 		return nil, fmt.Errorf("embedding dimension mismatch: got %d want %d", len(queryEmbedding), s.dim)
 	}
@@ -169,9 +173,7 @@ func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID stri
 
 	// RESP3 (Redis 7.4+) returns a map; handle that first.
 	if m, ok := raw.(map[any]any); ok {
-		records := parseSearchMapResult(m, limit)
-		span.SetAttributes(attribute.Int("results", len(records)))
-		return records, nil
+		return parseSearchMapResult(m, limit), nil
 	}
 
 	arr, ok := raw.([]any)
@@ -180,7 +182,6 @@ func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID stri
 	}
 
 	records := parseSearchArrayResult(arr, limit)
-	span.SetAttributes(attribute.Int("results", len(records)))
 	return records, nil
 }
 

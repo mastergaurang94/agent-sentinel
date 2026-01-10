@@ -6,6 +6,10 @@ import (
 
 	"embedding-sidecar/internal/embedder"
 	"embedding-sidecar/internal/store"
+	"embedding-sidecar/internal/telemetry"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type Detector struct {
@@ -31,15 +35,40 @@ func NewDetector(store *store.VectorStore, embedder embedder.Embedding, similari
 }
 
 func (d *Detector) CheckLoop(ctx context.Context, tenantID, prompt string) (LoopResult, error) {
+	ctx, span := telemetry.StartSpan(ctx, "detector.check_loop",
+		attribute.String("tenant.id", tenantID),
+	)
+	defer span.End()
+
+	_, embedSpan := telemetry.StartSpan(ctx, "embedder.compute")
 	embedding, err := d.embedder.Compute(prompt)
+	if err != nil {
+		embedSpan.RecordError(err)
+		embedSpan.SetStatus(codes.Error, err.Error())
+		embedSpan.End()
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return LoopResult{}, err
+	}
+	embedSpan.End()
+
+	searchCtx, searchSpan := telemetry.StartSpan(ctx, "store.search",
+		attribute.Int("search.limit", d.limit),
+	)
 	if err != nil {
 		return LoopResult{}, err
 	}
 
-	records, err := d.store.SearchSimilarEmbeddings(ctx, tenantID, embedding, d.limit)
+	records, err := d.store.SearchSimilarEmbeddings(searchCtx, tenantID, embedding, d.limit)
 	if err != nil {
+		searchSpan.RecordError(err)
+		searchSpan.SetStatus(codes.Error, err.Error())
+		searchSpan.End()
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return LoopResult{}, err
 	}
+	searchSpan.End()
 
 	var (
 		maxSim        float64
@@ -55,15 +84,19 @@ func (d *Detector) CheckLoop(ctx context.Context, tenantID, prompt string) (Loop
 
 	// Store the new embedding asynchronously to keep latency low.
 	go func() {
-		storeCtx := context.WithoutCancel(ctx)
-		if err := d.store.StoreEmbedding(storeCtx, tenantID, prompt, embedding); err != nil {
+		if err := d.store.StoreEmbedding(context.Background(), tenantID, prompt, embedding); err != nil {
 			slog.Warn("failed to store embedding", "error", err)
 		}
 	}()
 
-	return LoopResult{
+	result := LoopResult{
 		LoopDetected:  maxSim > d.similarityThreshold,
 		MaxSimilarity: maxSim,
 		SimilarPrompt: similarPrompt,
-	}, nil
+	}
+	span.SetAttributes(
+		attribute.Bool("loop.detected", result.LoopDetected),
+		attribute.Float64("loop.max_similarity", result.MaxSimilarity),
+	)
+	return result, nil
 }
