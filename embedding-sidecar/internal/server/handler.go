@@ -29,7 +29,7 @@ func (h *EmbeddingHandler) CheckLoop(ctx context.Context, req *pb.CheckLoopReque
 		slog.Error("detector failed", "error", err, "latency_ms", latency.Milliseconds())
 		return nil, err
 	}
-	slog.Info("loop check",
+	slog.Debug("loop check",
 		"tenant_id", req.GetTenantId(),
 		"loop_detected", result.LoopDetected,
 		"max_similarity", result.MaxSimilarity,
