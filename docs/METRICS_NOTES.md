@@ -24,6 +24,5 @@ Quick reference for dashboarding and alert wiring.
 - `sidecar.loop_check.requests` (counter): result=detected|not_detected|error, tenant.id
 
 ## Notes
-- Tenant hashing middleware is still on backlog; tenant.id currently passes through as-is.
 - OTLP export only; Prometheus export and dashboards remain to be added.
 

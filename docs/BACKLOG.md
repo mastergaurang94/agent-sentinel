@@ -24,4 +24,9 @@ This document tracks future enhancements and improvements for Agent Sentinel.
 
 ### Infrastructure
 - **Prometheus Metrics**: Export Prometheus metrics in addition to OTLP
+  - Decide on export for dashboards (Prometheus vs OTLP only); wire a small starter dashboard:
+  - Rate limit outcomes (allowed/denied/fail_open), Redis latency/errors.
+  - Provider HTTP latency/error and TTFT/stream duration.
+  - Loop detection counts and sidecar Redis latency.
+  - Runtime gauges (goroutines, async queue depth) for saturation signals.
 - **Configuration Management**: Support config files in addition to env vars
