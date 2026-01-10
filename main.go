@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -17,6 +16,7 @@ import (
 	"agent-sentinel/internal/config"
 	"agent-sentinel/internal/loopdetect"
 	"agent-sentinel/internal/middleware"
+	providerspkg "agent-sentinel/internal/providers"
 	"agent-sentinel/internal/providers/gemini"
 	"agent-sentinel/internal/providers/openai"
 	"agent-sentinel/internal/telemetry"
@@ -50,11 +50,7 @@ func main() {
 	geminiKey := os.Getenv("GEMINI_API_KEY")
 	openAIKey := os.Getenv("OPENAI_API_KEY")
 
-	var provider interface {
-		Name() string
-		BaseURL() *url.URL
-		PrepareRequest(req *http.Request)
-	}
+	var provider providerspkg.Provider
 	if targetAPI == "openai" || (targetAPI == "" && openAIKey != "" && geminiKey == "") {
 		if openAIKey == "" {
 			slog.Error("OPENAI_API_KEY environment variable is not set")
@@ -116,7 +112,7 @@ func main() {
 	// Build middleware chain (order: tracing -> rate limiting -> loop detection -> logging -> proxy)
 	var handler http.Handler = proxy
 	handler = middleware.Logging(handler)
-	handler = middleware.LoopDetection(loopClient, rateLimitHeader, loopHint)(handler)
+	handler = middleware.LoopDetection(loopClient, provider, rateLimitHeader, loopHint)(handler)
 	handler = middleware.RateLimiting(rateLimiter, provider.Name(), rateLimitHeader)(handler)
 	handler = telemetry.Middleware(handler)
 

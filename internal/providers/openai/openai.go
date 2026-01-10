@@ -31,3 +31,17 @@ func (p *Provider) PrepareRequest(req *http.Request) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", p.apiKey))
 	req.Host = p.base.Host
 }
+
+// InjectHint prepends a system message with the hint.
+func (p *Provider) InjectHint(body map[string]any, hint string) bool {
+	if hint == "" {
+		return false
+	}
+	msgs, ok := body["messages"].([]any)
+	if !ok {
+		msgs = []any{}
+	}
+	hintMsg := map[string]any{"role": "system", "content": hint}
+	body["messages"] = append([]any{hintMsg}, msgs...)
+	return true
+}

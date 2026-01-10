@@ -10,13 +10,14 @@ import (
 
 	"agent-sentinel/internal/loopdetect"
 	"agent-sentinel/internal/parser"
+	"agent-sentinel/internal/providers"
 )
 
 // LoopDetection middleware calls the embedding sidecar to detect loops and injects a hint on detection.
-func LoopDetection(client *loopdetect.Client, headerName, interventionHint string) func(http.Handler) http.Handler {
+func LoopDetection(client *loopdetect.Client, provider providers.Provider, headerName, interventionHint string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if client == nil || r.Method != http.MethodPost {
+			if client == nil || provider == nil || r.Method != http.MethodPost {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -58,7 +59,7 @@ func LoopDetection(client *loopdetect.Client, headerName, interventionHint strin
 				return
 			}
 
-			if mutateRequestWithHint(data, interventionHint) {
+			if provider.InjectHint(data, interventionHint) {
 				updated, err := json.Marshal(data)
 				if err == nil {
 					r.Body = io.NopCloser(bytes.NewReader(updated))
@@ -71,34 +72,4 @@ func LoopDetection(client *loopdetect.Client, headerName, interventionHint strin
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-func mutateRequestWithHint(data map[string]any, hint string) bool {
-	if hint == "" {
-		return false
-	}
-
-	// Gemini-style: contents.parts[].text
-	if contents, ok := data["contents"].([]any); ok && len(contents) > 0 {
-		if first, ok := contents[0].(map[string]any); ok {
-			partsAny, ok := first["parts"].([]any)
-			if !ok {
-				partsAny = []any{}
-			}
-			hintPart := map[string]any{"text": hint}
-			first["parts"] = append([]any{hintPart}, partsAny...)
-			contents[0] = first
-			data["contents"] = contents
-			return true
-		}
-	}
-
-	// OpenAI-style: messages[].content string (prepend system role)
-	if msgs, ok := data["messages"].([]any); ok {
-		hintMsg := map[string]any{"role": "system", "content": hint}
-		data["messages"] = append([]any{hintMsg}, msgs...)
-		return true
-	}
-
-	return false
 }

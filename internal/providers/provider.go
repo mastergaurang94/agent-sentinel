@@ -10,4 +10,5 @@ type Provider interface {
 	Name() string
 	BaseURL() *url.URL
 	PrepareRequest(req *http.Request)
+	InjectHint(body map[string]any, hint string) bool
 }

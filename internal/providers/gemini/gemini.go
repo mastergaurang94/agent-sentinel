@@ -32,3 +32,27 @@ func (p *Provider) PrepareRequest(req *http.Request) {
 	req.URL.RawQuery = q.Encode()
 	req.Host = p.base.Host
 }
+
+// InjectHint prepends a text hint to the first content part.
+func (p *Provider) InjectHint(body map[string]any, hint string) bool {
+	if hint == "" {
+		return false
+	}
+	contents, ok := body["contents"].([]any)
+	if !ok || len(contents) == 0 {
+		return false
+	}
+	first, ok := contents[0].(map[string]any)
+	if !ok {
+		return false
+	}
+	partsAny, ok := first["parts"].([]any)
+	if !ok {
+		partsAny = []any{}
+	}
+	hintPart := map[string]any{"text": hint}
+	first["parts"] = append([]any{hintPart}, partsAny...)
+	contents[0] = first
+	body["contents"] = contents
+	return true
+}
