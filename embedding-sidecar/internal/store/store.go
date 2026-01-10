@@ -53,6 +53,11 @@ func NewVectorStore(redisURL string, ttl time.Duration, keep int, dim int) (*Vec
 func (s *VectorStore) EnsureIndex(ctx context.Context) error {
 	ctx, span := telemetry.StartSpan(ctx, "redis.ensure_index")
 	defer span.End()
+	start := time.Now()
+	result := "ok"
+	defer func() {
+		telemetry.ObserveRedisLatency(ctx, "ensure_index", result, "", time.Since(start))
+	}()
 
 	_, err := s.client.Do(ctx, "FT.INFO", redisIndexName).Result()
 	if err == nil {
@@ -74,6 +79,7 @@ func (s *VectorStore) EnsureIndex(ctx context.Context) error {
 	if err := s.client.Do(ctx, args...).Err(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		result = "error"
 		return err
 	}
 	return nil
@@ -84,6 +90,11 @@ func (s *VectorStore) StoreEmbedding(ctx context.Context, tenantID, prompt strin
 		attribute.String("tenant.id", tenantID),
 	)
 	defer span.End()
+	start := time.Now()
+	result := "ok"
+	defer func() {
+		telemetry.ObserveRedisLatency(ctx, "store_embedding", result, tenantID, time.Since(start))
+	}()
 
 	if len(embedding) != s.dim {
 		return fmt.Errorf("embedding dimension mismatch: got %d want %d", len(embedding), s.dim)
@@ -101,11 +112,13 @@ func (s *VectorStore) StoreEmbedding(ctx context.Context, tenantID, prompt strin
 	if err := s.client.HSet(ctx, key, fields...).Err(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		result = "error"
 		return err
 	}
 	if err := s.client.Expire(ctx, key, s.ttl).Err(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		result = "error"
 		return err
 	}
 
@@ -142,6 +155,11 @@ func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID stri
 		attribute.Int("search.limit", limit),
 	)
 	defer span.End()
+	start := time.Now()
+	result := "ok"
+	defer func() {
+		telemetry.ObserveRedisLatency(ctx, "search_embeddings", result, tenantID, time.Since(start))
+	}()
 
 	if len(queryEmbedding) != s.dim {
 		return nil, fmt.Errorf("embedding dimension mismatch: got %d want %d", len(queryEmbedding), s.dim)
@@ -168,6 +186,7 @@ func (s *VectorStore) SearchSimilarEmbeddings(ctx context.Context, tenantID stri
 		// If index missing, surface error so startup can create.
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		result = "error"
 		return nil, err
 	}
 

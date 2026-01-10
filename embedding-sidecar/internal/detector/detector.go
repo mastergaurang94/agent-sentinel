@@ -39,11 +39,16 @@ func (d *Detector) CheckLoop(ctx context.Context, tenantID, prompt string) (Loop
 		attribute.String("tenant.id", tenantID),
 	)
 	defer span.End()
+	resultMetric := "unknown"
+	defer func() {
+		telemetry.RecordLoopCheck(ctx, resultMetric, tenantID)
+	}()
 
 	embedding, err := d.embedder.Compute(prompt)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		resultMetric = "error"
 		return LoopResult{}, err
 	}
 
@@ -51,6 +56,7 @@ func (d *Detector) CheckLoop(ctx context.Context, tenantID, prompt string) (Loop
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		resultMetric = "error"
 		return LoopResult{}, err
 	}
 
@@ -77,6 +83,11 @@ func (d *Detector) CheckLoop(ctx context.Context, tenantID, prompt string) (Loop
 		LoopDetected:  maxSim > d.similarityThreshold,
 		MaxSimilarity: maxSim,
 		SimilarPrompt: similarPrompt,
+	}
+	if result.LoopDetected {
+		resultMetric = "detected"
+	} else {
+		resultMetric = "not_detected"
 	}
 	span.SetAttributes(
 		attribute.Bool("loop.detected", result.LoopDetected),

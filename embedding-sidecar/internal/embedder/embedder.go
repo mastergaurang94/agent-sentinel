@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 	"unicode"
 
 	"embedding-sidecar/internal/telemetry"
@@ -67,14 +68,21 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 		attribute.String("embedder.output_name", e.outputName),
 	)
 	defer span.End()
+	start := time.Now()
+	result := "ok"
+	defer func() {
+		telemetry.ObserveEmbedderLatency(ctx, e.dim, e.outputName, result, time.Since(start))
+	}()
 	inputIDs, attentionMask := e.tokenizer.Encode(text)
 
 	inputTensor, err := onnxruntime_go.NewTensor[int64](onnxruntime_go.Shape{1, int64(len(inputIDs))}, inputIDs)
 	if err != nil {
+		result = "error"
 		return nil, fmt.Errorf("create input_ids tensor: %w", err)
 	}
 	maskTensor, err := onnxruntime_go.NewTensor[int64](onnxruntime_go.Shape{1, int64(len(attentionMask))}, attentionMask)
 	if err != nil {
+		result = "error"
 		return nil, fmt.Errorf("create attention_mask tensor: %w", err)
 	}
 
@@ -85,6 +93,7 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		result = "error"
 		return nil, fmt.Errorf("create output tensor: %w", err)
 	}
 
@@ -94,6 +103,7 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		result = "error"
 		return nil, fmt.Errorf("create onnx session: %w", err)
 	}
 	defer session.Destroy()
@@ -101,6 +111,7 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 	if err := session.Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		result = "error"
 		return nil, fmt.Errorf("onnx run: %w", err)
 	}
 
@@ -109,6 +120,7 @@ func (e *onnxEmbedder) Compute(text string) ([]float32, error) {
 		err := fmt.Errorf("unexpected embedding dim: got %d want %d", len(data), e.dim)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		result = "error"
 		return nil, err
 	}
 	return data, nil
