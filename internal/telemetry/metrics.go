@@ -24,6 +24,8 @@ var (
 	refundCounter     metric.Int64Counter
 	ttftMs            metric.Float64Histogram
 	streamDurationMs  metric.Float64Histogram
+	providerLatencyMs metric.Float64Histogram
+	providerErrors    metric.Int64Counter
 	goroutinesGauge   metric.Int64ObservableGauge
 	asyncQueueGauge   metric.Int64ObservableGauge
 	gaugeOnce         sync.Once
@@ -60,6 +62,12 @@ func initMeter() {
 		}
 		if streamDurationMs, err = meter.Float64Histogram("proxy.stream.duration_ms"); err != nil {
 			slog.Warn("failed to create metric", "name", "proxy.stream.duration_ms", "error", err)
+		}
+		if providerLatencyMs, err = meter.Float64Histogram("proxy.provider_http.latency_ms"); err != nil {
+			slog.Warn("failed to create metric", "name", "proxy.provider_http.latency_ms", "error", err)
+		}
+		if providerErrors, err = meter.Int64Counter("proxy.provider_http.errors"); err != nil {
+			slog.Warn("failed to create metric", "name", "proxy.provider_http.errors", "error", err)
 		}
 		if goroutinesGauge, err = meter.Int64ObservableGauge("proxy.runtime.goroutines"); err != nil {
 			slog.Warn("failed to create metric", "name", "proxy.runtime.goroutines", "error", err)
@@ -238,6 +246,32 @@ func IncRefund(ctx context.Context, provider, model, tenantID, reason string) {
 	}
 
 	refundCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+}
+
+// ObserveProviderHTTP records provider HTTP latency and errors with status/result attributes.
+func ObserveProviderHTTP(ctx context.Context, provider, model string, status int, result string, d time.Duration) {
+	if providerLatencyMs == nil {
+		initMeter()
+	}
+	if providerLatencyMs == nil {
+		return
+	}
+
+	attrs := []attribute.KeyValue{
+		attribute.String("provider", provider),
+		attribute.String("result", result),
+	}
+	if model != "" {
+		attrs = append(attrs, attribute.String("model", model))
+	}
+	if status > 0 {
+		attrs = append(attrs, attribute.Int("http.status_code", status))
+	}
+
+	providerLatencyMs.Record(ctx, float64(d.Milliseconds()), metric.WithAttributes(attrs...))
+	if result == "error" && providerErrors != nil {
+		providerErrors.Add(ctx, 1, metric.WithAttributes(attrs...))
+	}
 }
 
 // ObserveTTFT records time-to-first-token latency for streaming responses.

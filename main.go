@@ -83,6 +83,7 @@ func main() {
 		originalDirector(req)
 		provider.PrepareRequest(req)
 	}
+	proxy.Transport = telemetry.NewInstrumentedTransport(provider, proxy.Transport)
 	proxy.ModifyResponse = handlers.CreateModifyResponse(rateLimiter, provider)
 	proxy.ErrorHandler = handlers.CreateErrorHandler(rateLimiter)
 
