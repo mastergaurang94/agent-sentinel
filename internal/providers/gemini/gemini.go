@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"strings"
 
-	"agent-sentinel/internal/parser"
+	"agent-sentinel/internal/providers"
 )
 
 type Provider struct {
@@ -110,7 +110,7 @@ func (p *Provider) ExtractFullText(body map[string]any) string {
 	return strings.Join(parts, " ")
 }
 
-func (p *Provider) ParseTokenUsage(body map[string]any) parser.TokenUsage {
+func (p *Provider) ParseTokenUsage(body map[string]any) providers.TokenUsage {
 	if usage, ok := body["usageMetadata"].(map[string]any); ok {
 		var inputTokens, outputTokens int
 		if pt, ok := usage["promptTokenCount"].(float64); ok {
@@ -120,8 +120,8 @@ func (p *Provider) ParseTokenUsage(body map[string]any) parser.TokenUsage {
 			outputTokens = int(ct)
 		}
 		if inputTokens > 0 || outputTokens > 0 {
-			return parser.TokenUsage{InputTokens: inputTokens, OutputTokens: outputTokens, Found: true}
+			return providers.TokenUsage{InputTokens: inputTokens, OutputTokens: outputTokens, Found: true}
 		}
 	}
-	return parser.TokenUsage{}
+	return providers.TokenUsage{}
 }

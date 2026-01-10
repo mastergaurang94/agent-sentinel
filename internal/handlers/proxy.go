@@ -10,7 +10,6 @@ import (
 
 	"agent-sentinel/internal/async"
 	"agent-sentinel/internal/middleware"
-	"agent-sentinel/internal/parser"
 	"agent-sentinel/internal/providers"
 	"agent-sentinel/internal/stream"
 	"agent-sentinel/ratelimit"
@@ -62,7 +61,7 @@ func CreateModifyResponse(limiter *ratelimit.RateLimiter, provider providers.Pro
 			return nil
 		}
 
-		isError := parser.HasErrorInResponse(data) || resp.StatusCode >= http.StatusBadRequest
+		isError := hasErrorInResponse(data) || resp.StatusCode >= http.StatusBadRequest
 		usage := provider.ParseTokenUsage(data)
 
 		async.Run(func() {
@@ -104,6 +103,11 @@ func CreateModifyResponse(limiter *ratelimit.RateLimiter, provider providers.Pro
 
 		return nil
 	}
+}
+
+func hasErrorInResponse(data map[string]any) bool {
+	_, ok := data["error"]
+	return ok
 }
 
 // CreateErrorHandler builds the proxy error handler.

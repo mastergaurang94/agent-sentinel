@@ -10,11 +10,11 @@ import (
 	"strings"
 
 	"agent-sentinel/internal/async"
-	"agent-sentinel/internal/parser"
+	"agent-sentinel/internal/providers"
 	"agent-sentinel/ratelimit"
 )
 
-type TokenUsage = parser.TokenUsage
+type TokenUsage = providers.TokenUsage
 
 // IsStreamingResponse checks response headers for streaming content types.
 func IsStreamingResponse(resp *http.Response) bool {
@@ -26,8 +26,8 @@ func IsStreamingResponse(resp *http.Response) bool {
 
 type StreamingResponseReader struct {
 	reader     io.ReadCloser
-	parseUsage func(map[string]any) parser.TokenUsage
-	usage      parser.TokenUsage
+	parseUsage func(map[string]any) providers.TokenUsage
+	usage      providers.TokenUsage
 	buffer     []byte
 	hasError   bool
 	tenantID   string
@@ -37,7 +37,7 @@ type StreamingResponseReader struct {
 	finalized  bool
 }
 
-func NewStreamingResponseReader(reader io.ReadCloser, parseUsage func(map[string]any) parser.TokenUsage, tenantID string, estimate float64, pricing ratelimit.Pricing, limiter *ratelimit.RateLimiter) *StreamingResponseReader {
+func NewStreamingResponseReader(reader io.ReadCloser, parseUsage func(map[string]any) providers.TokenUsage, tenantID string, estimate float64, pricing ratelimit.Pricing, limiter *ratelimit.RateLimiter) *StreamingResponseReader {
 	return &StreamingResponseReader{
 		reader:     reader,
 		parseUsage: parseUsage,
