@@ -17,6 +17,8 @@ import (
 	pb "embedding-sidecar/proto"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 func main() {
@@ -70,12 +72,19 @@ func main() {
 	grpcServer := grpc.NewServer()
 	pb.RegisterEmbeddingServiceServer(grpcServer, handler)
 
+	healthServer := health.NewServer()
+	healthpb.RegisterHealthServer(grpcServer, healthServer)
+	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
+
 	go func() {
 		slog.Info("embedding sidecar gRPC server started", "uds", cfg.UDSPath)
 		if err := grpcServer.Serve(lis); err != nil {
 			slog.Error("gRPC server exited", "error", err)
 		}
 	}()
+
+	// Mark serving after warmup and registrations completed.
+	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 
 	waitForShutdown(grpcServer, cfg.UDSPath)
 }
