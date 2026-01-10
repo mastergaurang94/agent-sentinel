@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"agent-sentinel/internal/async"
 	"agent-sentinel/internal/middleware"
@@ -28,13 +29,14 @@ func CreateModifyResponse(limiter *ratelimit.RateLimiter, provider providers.Pro
 		estimate, _ := ctx.Value(middleware.ContextKeyEstimate).(float64)
 		pricing, _ := ctx.Value(middleware.ContextKeyPricing).(ratelimit.Pricing)
 		model, _ := ctx.Value(middleware.ContextKeyModel).(string)
+		startTime, _ := ctx.Value(middleware.ContextKeyReqStart).(time.Time)
 
 		if tenantID == "" || estimate == 0 {
 			return nil
 		}
 
 		if stream.IsStreamingResponse(resp) {
-			streamReader := stream.NewStreamingResponseReader(resp.Body, provider.ParseTokenUsage, tenantID, estimate, pricing, limiter, provider.Name(), model)
+			streamReader := stream.NewStreamingResponseReader(resp.Body, provider.ParseTokenUsage, tenantID, estimate, pricing, limiter, provider.Name(), model, startTime)
 			resp.Body = streamReader
 			slog.Debug("Streaming response detected, using chunk-based cost tracking",
 				"tenant_id", tenantID,

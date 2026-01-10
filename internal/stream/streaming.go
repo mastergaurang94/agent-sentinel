@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"agent-sentinel/internal/async"
 	"agent-sentinel/internal/providers"
@@ -37,10 +38,12 @@ type StreamingResponseReader struct {
 	limiter    *ratelimit.RateLimiter
 	provider   string
 	model      string
+	startTime  time.Time
+	firstToken time.Time
 	finalized  bool
 }
 
-func NewStreamingResponseReader(reader io.ReadCloser, parseUsage func(map[string]any) providers.TokenUsage, tenantID string, estimate float64, pricing ratelimit.Pricing, limiter *ratelimit.RateLimiter, provider string, model string) *StreamingResponseReader {
+func NewStreamingResponseReader(reader io.ReadCloser, parseUsage func(map[string]any) providers.TokenUsage, tenantID string, estimate float64, pricing ratelimit.Pricing, limiter *ratelimit.RateLimiter, provider string, model string, startTime time.Time) *StreamingResponseReader {
 	return &StreamingResponseReader{
 		reader:     reader,
 		parseUsage: parseUsage,
@@ -50,6 +53,7 @@ func NewStreamingResponseReader(reader io.ReadCloser, parseUsage func(map[string
 		limiter:    limiter,
 		provider:   provider,
 		model:      model,
+		startTime:  startTime,
 		buffer:     make([]byte, 0, 4096),
 	}
 }
@@ -121,6 +125,11 @@ func (s *StreamingResponseReader) parseSSELine(line []byte) {
 		return
 	}
 
+	// Record TTFT at first data event.
+	if s.firstToken.IsZero() {
+		s.firstToken = time.Now()
+	}
+
 	var chunk map[string]any
 	if err := json.Unmarshal(dataPart, &chunk); err != nil {
 		return
@@ -149,6 +158,13 @@ func (s *StreamingResponseReader) finalizeCost() {
 
 	async.Run(func() {
 		bgCtx := context.Background()
+		if !s.startTime.IsZero() {
+			telemetry.ObserveStreamDuration(bgCtx, s.provider, s.model, s.tenantID, time.Since(s.startTime))
+		}
+		if !s.firstToken.IsZero() && !s.startTime.IsZero() && s.firstToken.After(s.startTime) {
+			telemetry.ObserveTTFT(bgCtx, s.provider, s.model, s.tenantID, s.firstToken.Sub(s.startTime))
+		}
+
 		if s.usage.Found {
 			actualCost := ratelimit.CalculateCost(s.usage.InputTokens, s.usage.OutputTokens, s.pricing)
 			if err := s.limiter.AdjustCost(bgCtx, s.tenantID, s.estimate, actualCost); err != nil {

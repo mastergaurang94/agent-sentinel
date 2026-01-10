@@ -24,6 +24,7 @@ const (
 	ContextKeyModel    ContextKey = "rate_limit_model"
 	ContextKeyProvider ContextKey = "rate_limit_provider"
 	ContextKeyPricing  ContextKey = "rate_limit_pricing"
+	ContextKeyReqStart ContextKey = "request_start_time"
 )
 
 func RateLimiting(limiter *ratelimit.RateLimiter, provider providers.Provider, headerName string) func(http.Handler) http.Handler {
@@ -42,6 +43,11 @@ func RateLimiting(limiter *ratelimit.RateLimiter, provider providers.Provider, h
 				)
 				next.ServeHTTP(w, r)
 				return
+			}
+
+			// Record request start time once for downstream metrics (TTFT, duration).
+			if _, ok := r.Context().Value(ContextKeyReqStart).(time.Time); !ok {
+				r = r.WithContext(context.WithValue(r.Context(), ContextKeyReqStart, time.Now()))
 			}
 
 			body, err := io.ReadAll(r.Body)

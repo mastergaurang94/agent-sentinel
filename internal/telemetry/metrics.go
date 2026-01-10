@@ -21,6 +21,8 @@ var (
 	estimateLatencyMs metric.Float64Histogram
 	costDeltaUSD      metric.Float64Histogram
 	refundCounter     metric.Int64Counter
+	ttftMs            metric.Float64Histogram
+	streamDurationMs  metric.Float64Histogram
 )
 
 // initMeter lazily initializes the meter and instruments. It uses the global
@@ -47,6 +49,12 @@ func initMeter() {
 		}
 		if refundCounter, err = meter.Int64Counter("ratelimit.cost.refunds"); err != nil {
 			slog.Warn("failed to create metric", "name", "ratelimit.cost.refunds", "error", err)
+		}
+		if ttftMs, err = meter.Float64Histogram("proxy.ttft_ms"); err != nil {
+			slog.Warn("failed to create metric", "name", "proxy.ttft_ms", "error", err)
+		}
+		if streamDurationMs, err = meter.Float64Histogram("proxy.stream.duration_ms"); err != nil {
+			slog.Warn("failed to create metric", "name", "proxy.stream.duration_ms", "error", err)
 		}
 	})
 }
@@ -194,4 +202,50 @@ func IncRefund(ctx context.Context, provider, model, tenantID, reason string) {
 	}
 
 	refundCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+}
+
+// ObserveTTFT records time-to-first-token latency for streaming responses.
+func ObserveTTFT(ctx context.Context, provider, model, tenantID string, d time.Duration) {
+	if ttftMs == nil {
+		initMeter()
+	}
+	if ttftMs == nil {
+		return
+	}
+
+	attrs := []attribute.KeyValue{}
+	if provider != "" {
+		attrs = append(attrs, attribute.String("provider", provider))
+	}
+	if model != "" {
+		attrs = append(attrs, attribute.String("model", model))
+	}
+	if tenantID != "" {
+		attrs = append(attrs, attribute.String("tenant.id", tenantID))
+	}
+
+	ttftMs.Record(ctx, float64(d.Milliseconds()), metric.WithAttributes(attrs...))
+}
+
+// ObserveStreamDuration records total streaming duration from request start to stream end.
+func ObserveStreamDuration(ctx context.Context, provider, model, tenantID string, d time.Duration) {
+	if streamDurationMs == nil {
+		initMeter()
+	}
+	if streamDurationMs == nil {
+		return
+	}
+
+	attrs := []attribute.KeyValue{}
+	if provider != "" {
+		attrs = append(attrs, attribute.String("provider", provider))
+	}
+	if model != "" {
+		attrs = append(attrs, attribute.String("model", model))
+	}
+	if tenantID != "" {
+		attrs = append(attrs, attribute.String("tenant.id", tenantID))
+	}
+
+	streamDurationMs.Record(ctx, float64(d.Milliseconds()), metric.WithAttributes(attrs...))
 }

@@ -2,7 +2,7 @@
 
 This document tracks future enhancements and improvements for Agent Sentinel.
 
-## Telemetry Enhancements
+## Telemetry / Logging Enhancements
 
 ### Add Additional Telemetry Metrics
 - [ ] **Goroutine Metrics**: Add OpenTelemetry metrics for async operations
@@ -10,15 +10,7 @@ This document tracks future enhancements and improvements for Agent Sentinel.
   - Measure async operation latency
   - Monitor semaphore utilization
   
-- [ ] **TTFT (Time-To-First-Token) Metrics**: Add telemetry for streaming responses
-  - Measure time from request start to first chunk received
-  - Track streaming response duration
-  
-- [x] **Rate Limiting Metrics**: Add detailed telemetry for rate limiting operations
-  - Track rate limit checks (allowed/denied)
-  - Measure Redis operation latency
-  - Monitor cost estimation accuracy (estimate vs actual)
-- [ ] **Tenant ID hashing middleware**: add upstream hashing of tenant IDs before telemetry/metrics labeling
+- [ ] **Tenant ID hashing middleware**: add upstream hashing of tenant IDs before metrics labeling / logging
 
 
 ## Testing
