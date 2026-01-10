@@ -74,7 +74,6 @@ func main() {
 
 	healthServer := health.NewServer()
 	healthpb.RegisterHealthServer(grpcServer, healthServer)
-	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
 
 	go func() {
 		slog.Info("embedding sidecar gRPC server started", "uds", cfg.UDSPath)
