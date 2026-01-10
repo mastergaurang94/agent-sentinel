@@ -14,7 +14,7 @@ This document tracks future enhancements and improvements for Agent Sentinel.
   - Measure time from request start to first chunk received
   - Track streaming response duration
   
-- [ ] **Rate Limiting Metrics**: Add detailed telemetry for rate limiting operations
+- [x] **Rate Limiting Metrics**: Add detailed telemetry for rate limiting operations
   - Track rate limit checks (allowed/denied)
   - Measure Redis operation latency
   - Monitor cost estimation accuracy (estimate vs actual)
