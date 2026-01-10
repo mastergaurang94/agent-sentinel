@@ -3,6 +3,7 @@ package telemetry
 import (
 	"context"
 	"log/slog"
+	"runtime"
 	"sync"
 	"time"
 
@@ -23,6 +24,10 @@ var (
 	refundCounter     metric.Int64Counter
 	ttftMs            metric.Float64Histogram
 	streamDurationMs  metric.Float64Histogram
+	goroutinesGauge   metric.Int64ObservableGauge
+	asyncQueueGauge   metric.Int64ObservableGauge
+	gaugeOnce         sync.Once
+	gaugeRegErr       error
 )
 
 // initMeter lazily initializes the meter and instruments. It uses the global
@@ -55,6 +60,37 @@ func initMeter() {
 		}
 		if streamDurationMs, err = meter.Float64Histogram("proxy.stream.duration_ms"); err != nil {
 			slog.Warn("failed to create metric", "name", "proxy.stream.duration_ms", "error", err)
+		}
+		if goroutinesGauge, err = meter.Int64ObservableGauge("proxy.runtime.goroutines"); err != nil {
+			slog.Warn("failed to create metric", "name", "proxy.runtime.goroutines", "error", err)
+		}
+		if asyncQueueGauge, err = meter.Int64ObservableGauge("proxy.async.queue_depth"); err != nil {
+			slog.Warn("failed to create metric", "name", "proxy.async.queue_depth", "error", err)
+		}
+	})
+}
+
+// RegisterRuntimeGauges registers observable callbacks for goroutine count and async queue depth.
+// queueDepthFn should return the current queue depth; pass nil if not available.
+func RegisterRuntimeGauges(queueDepthFn func() int64) {
+	gaugeOnce.Do(func() {
+		if meter == nil {
+			initMeter()
+		}
+		if goroutinesGauge != nil {
+			_, gaugeRegErr = meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
+				o.ObserveInt64(goroutinesGauge, int64(runtime.NumGoroutine()))
+				return nil
+			}, goroutinesGauge)
+		}
+		if asyncQueueGauge != nil && queueDepthFn != nil {
+			_, gaugeRegErr = meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
+				o.ObserveInt64(asyncQueueGauge, queueDepthFn())
+				return nil
+			}, asyncQueueGauge)
+		}
+		if gaugeRegErr != nil {
+			slog.Warn("failed to register runtime gauges", "error", gaugeRegErr)
 		}
 	})
 }

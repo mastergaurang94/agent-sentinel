@@ -33,6 +33,7 @@ func main() {
 
 	// Initialize OpenTelemetry tracing (optional, based on env)
 	shutdownTracing := telemetry.InitTracing()
+	telemetry.RegisterRuntimeGauges(async.QueueDepth)
 
 	redisClient := ratelimit.NewRedisClient()
 	var rateLimiter *ratelimit.RateLimiter

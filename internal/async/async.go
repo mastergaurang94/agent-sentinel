@@ -63,3 +63,11 @@ func Wait(ctx context.Context) int {
 
 	return 0
 }
+
+// QueueDepth returns current in-flight async operations.
+func QueueDepth() int64 {
+	if asyncSemaphore == nil {
+		return 0
+	}
+	return int64(len(asyncSemaphore))
+}
