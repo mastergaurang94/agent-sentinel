@@ -12,8 +12,13 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
+type Store interface {
+	SearchSimilarEmbeddings(ctx context.Context, tenantID string, queryEmbedding []float32, limit int) ([]store.EmbeddingRecord, error)
+	StoreEmbedding(ctx context.Context, tenantID, prompt string, embedding []float32) error
+}
+
 type Detector struct {
-	store               *store.VectorStore
+	store               Store
 	embedder            embedder.Embedding
 	similarityThreshold float64
 	limit               int
@@ -25,7 +30,7 @@ type LoopResult struct {
 	SimilarPrompt string
 }
 
-func NewDetector(store *store.VectorStore, embedder embedder.Embedding, similarityThreshold float64, limit int) *Detector {
+func NewDetector(store Store, embedder embedder.Embedding, similarityThreshold float64, limit int) *Detector {
 	return &Detector{
 		store:               store,
 		embedder:            embedder,
