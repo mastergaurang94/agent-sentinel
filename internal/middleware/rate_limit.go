@@ -27,7 +27,12 @@ const (
 	ContextKeyReqStart ContextKey = "request_start_time"
 )
 
-func RateLimiting(limiter *ratelimit.RateLimiter, provider providers.Provider, headerName string) func(http.Handler) http.Handler {
+type RateLimiter interface {
+	CheckLimitAndIncrement(ctx context.Context, tenantID string, estimatedCost float64) (*ratelimit.CheckLimitResult, error)
+	GetPricing(provider, model string) (ratelimit.Pricing, bool)
+}
+
+func RateLimiting(limiter RateLimiter, provider providers.Provider, headerName string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if limiter == nil || provider == nil || r.Method != http.MethodPost {

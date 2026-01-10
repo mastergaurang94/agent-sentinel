@@ -2,23 +2,28 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
 
-	"agent-sentinel/internal/loopdetect"
 	"agent-sentinel/internal/providers"
 	"agent-sentinel/internal/telemetry"
+	pb "embedding-sidecar/proto"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
+type LoopClient interface {
+	Check(ctx context.Context, tenantID, prompt string) (*pb.CheckLoopResponse, error)
+}
+
 // LoopDetection middleware calls the embedding sidecar to detect loops and injects a hint on detection.
-func LoopDetection(client *loopdetect.Client, provider providers.Provider, headerName, interventionHint string) func(http.Handler) http.Handler {
+func LoopDetection(client LoopClient, provider providers.Provider, headerName, interventionHint string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if client == nil || provider == nil || r.Method != http.MethodPost {
