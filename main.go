@@ -82,7 +82,7 @@ func main() {
 		originalDirector(req)
 		provider.PrepareRequest(req)
 	}
-	proxy.ModifyResponse = handlers.CreateModifyResponse(rateLimiter)
+	proxy.ModifyResponse = handlers.CreateModifyResponse(rateLimiter, provider)
 	proxy.ErrorHandler = handlers.CreateErrorHandler(rateLimiter)
 
 	rateLimitHeader := os.Getenv("RATE_LIMIT_HEADER")
@@ -114,10 +114,10 @@ func main() {
 
 	// Build middleware chain (order: tracing -> rate limiting -> loop detection -> logging -> proxy)
 	var handler http.Handler = proxy
-	handler = middleware.Logging(handler)
+	handler = middleware.Logging(provider, handler)
 	handler = middleware.LoopDetection(loopClient, provider, rateLimitHeader, loopHint)(handler)
-	handler = middleware.RateLimiting(rateLimiter, provider.Name(), rateLimitHeader)(handler)
-	handler = telemetry.Middleware(handler)
+	handler = middleware.RateLimiting(rateLimiter, provider, rateLimitHeader)(handler)
+	handler = telemetry.Middleware(provider, handler)
 
 	port := ":8080"
 	slog.Info("Agent Sentinel proxy started",

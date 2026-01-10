@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"agent-sentinel/internal/loopdetect"
-	"agent-sentinel/internal/parser"
 	"agent-sentinel/internal/providers"
 )
 
@@ -42,7 +41,7 @@ func LoopDetection(client *loopdetect.Client, provider providers.Provider, heade
 				return
 			}
 
-			prompt := parser.ExtractFullRequestText(data)
+			prompt := provider.ExtractFullText(data)
 			if prompt == "" {
 				next.ServeHTTP(w, r)
 				return

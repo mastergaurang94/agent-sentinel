@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"agent-sentinel/internal/parser"
+	"agent-sentinel/internal/providers"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -74,7 +74,7 @@ func InitTracing() func(context.Context) error {
 }
 
 // Middleware wraps HTTP requests with tracing spans.
-func Middleware(next http.Handler) http.Handler {
+func Middleware(provider providers.Provider, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if tracer == nil {
 			next.ServeHTTP(w, r)
@@ -97,8 +97,10 @@ func Middleware(next http.Handler) http.Handler {
 		if tenantID := r.Header.Get("X-Tenant-ID"); tenantID != "" {
 			span.SetAttributes(attribute.String("tenant.id", tenantID))
 		}
-		if model := parser.ExtractModelFromPath(r.URL.Path); model != "" {
-			span.SetAttributes(attribute.String("llm.model", model))
+		if provider != nil {
+			if model := provider.ExtractModelFromPath(r.URL.Path); model != "" {
+				span.SetAttributes(attribute.String("llm.model", model))
+			}
 		}
 
 		// Wrap response writer to capture status.

@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"agent-sentinel/internal/parser"
+	"agent-sentinel/internal/providers"
 	"agent-sentinel/ratelimit"
 )
 
@@ -25,10 +25,10 @@ const (
 	ContextKeyPricing  ContextKey = "rate_limit_pricing"
 )
 
-func RateLimiting(limiter *ratelimit.RateLimiter, provider, headerName string) func(http.Handler) http.Handler {
+func RateLimiting(limiter *ratelimit.RateLimiter, provider providers.Provider, headerName string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if limiter == nil || r.Method != http.MethodPost {
+			if limiter == nil || provider == nil || r.Method != http.MethodPost {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -54,7 +54,7 @@ func RateLimiting(limiter *ratelimit.RateLimiter, provider, headerName string) f
 			}
 			r.Body = io.NopCloser(bytes.NewReader(body))
 
-			model := parser.ExtractModelFromPath(r.URL.Path)
+			model := provider.ExtractModelFromPath(r.URL.Path)
 			var data map[string]any
 			if err := json.Unmarshal(body, &data); err == nil {
 				if model == "" {
@@ -64,7 +64,7 @@ func RateLimiting(limiter *ratelimit.RateLimiter, provider, headerName string) f
 				}
 			}
 
-			requestText := parser.ExtractFullRequestText(data)
+			requestText := provider.ExtractFullText(data)
 			if requestText == "" {
 				slog.Debug("No text content found for token estimation",
 					"tenant_id", tenantID,
@@ -76,12 +76,12 @@ func RateLimiting(limiter *ratelimit.RateLimiter, provider, headerName string) f
 
 			inputTokens := ratelimit.CountTokens(requestText, model)
 
-			pricing, found := limiter.GetPricing(provider, model)
+			pricing, found := limiter.GetPricing(provider.Name(), model)
 			if !found {
-				pricing = ratelimit.DefaultPricing(provider)
+				pricing = ratelimit.DefaultPricing(provider.Name())
 				slog.Debug("Using default pricing for unknown model",
 					"model", model,
-					"provider", provider,
+					"provider", provider.Name(),
 				)
 			}
 

@@ -7,17 +7,17 @@ import (
 	"log/slog"
 	"net/http"
 
-	"agent-sentinel/internal/parser"
+	"agent-sentinel/internal/providers"
 )
 
-func Logging(next http.Handler) http.Handler {
+func Logging(provider providers.Provider, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		model := parser.ExtractModelFromPath(r.URL.Path)
+		model := provider.ExtractModelFromPath(r.URL.Path)
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -39,10 +39,7 @@ func Logging(next http.Handler) http.Handler {
 					model = m
 				}
 			}
-			prompt = parser.ExtractPromptFromGeminiContents(data)
-			if prompt == "" {
-				prompt = parser.ExtractPromptFromOpenAIResponses(data)
-			}
+			prompt = provider.ExtractPrompt(data)
 		}
 
 		if model != "" {

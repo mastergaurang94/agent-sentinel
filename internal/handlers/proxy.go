@@ -11,12 +11,13 @@ import (
 	"agent-sentinel/internal/async"
 	"agent-sentinel/internal/middleware"
 	"agent-sentinel/internal/parser"
+	"agent-sentinel/internal/providers"
 	"agent-sentinel/internal/stream"
 	"agent-sentinel/ratelimit"
 )
 
 // CreateModifyResponse builds the proxy ModifyResponse handler for cost tracking.
-func CreateModifyResponse(limiter *ratelimit.RateLimiter) func(*http.Response) error {
+func CreateModifyResponse(limiter *ratelimit.RateLimiter, provider providers.Provider) func(*http.Response) error {
 	return func(resp *http.Response) error {
 		if limiter == nil {
 			return nil
@@ -25,7 +26,6 @@ func CreateModifyResponse(limiter *ratelimit.RateLimiter) func(*http.Response) e
 		ctx := resp.Request.Context()
 		tenantID, _ := ctx.Value(middleware.ContextKeyTenantID).(string)
 		estimate, _ := ctx.Value(middleware.ContextKeyEstimate).(float64)
-		provider, _ := ctx.Value(middleware.ContextKeyProvider).(string)
 		pricing, _ := ctx.Value(middleware.ContextKeyPricing).(ratelimit.Pricing)
 
 		if tenantID == "" || estimate == 0 {
@@ -33,7 +33,7 @@ func CreateModifyResponse(limiter *ratelimit.RateLimiter) func(*http.Response) e
 		}
 
 		if stream.IsStreamingResponse(resp) {
-			streamReader := stream.NewStreamingResponseReader(resp.Body, provider, tenantID, estimate, pricing, limiter)
+			streamReader := stream.NewStreamingResponseReader(resp.Body, provider.ParseTokenUsage, tenantID, estimate, pricing, limiter)
 			resp.Body = streamReader
 			slog.Debug("Streaming response detected, using chunk-based cost tracking",
 				"tenant_id", tenantID,
@@ -63,7 +63,7 @@ func CreateModifyResponse(limiter *ratelimit.RateLimiter) func(*http.Response) e
 		}
 
 		isError := parser.HasErrorInResponse(data) || resp.StatusCode >= http.StatusBadRequest
-		usage := parser.ParseTokenUsage(data, provider)
+		usage := provider.ParseTokenUsage(data)
 
 		async.Run(func() {
 			bgCtx := context.Background()

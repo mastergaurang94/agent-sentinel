@@ -14,6 +14,8 @@ import (
 	"agent-sentinel/ratelimit"
 )
 
+type TokenUsage = parser.TokenUsage
+
 // IsStreamingResponse checks response headers for streaming content types.
 func IsStreamingResponse(resp *http.Response) bool {
 	contentType := resp.Header.Get("Content-Type")
@@ -23,27 +25,27 @@ func IsStreamingResponse(resp *http.Response) bool {
 }
 
 type StreamingResponseReader struct {
-	reader    io.ReadCloser
-	provider  string
-	usage     parser.TokenUsage
-	buffer    []byte
-	hasError  bool
-	tenantID  string
-	estimate  float64
-	pricing   ratelimit.Pricing
-	limiter   *ratelimit.RateLimiter
-	finalized bool
+	reader     io.ReadCloser
+	parseUsage func(map[string]any) parser.TokenUsage
+	usage      parser.TokenUsage
+	buffer     []byte
+	hasError   bool
+	tenantID   string
+	estimate   float64
+	pricing    ratelimit.Pricing
+	limiter    *ratelimit.RateLimiter
+	finalized  bool
 }
 
-func NewStreamingResponseReader(reader io.ReadCloser, provider, tenantID string, estimate float64, pricing ratelimit.Pricing, limiter *ratelimit.RateLimiter) *StreamingResponseReader {
+func NewStreamingResponseReader(reader io.ReadCloser, parseUsage func(map[string]any) parser.TokenUsage, tenantID string, estimate float64, pricing ratelimit.Pricing, limiter *ratelimit.RateLimiter) *StreamingResponseReader {
 	return &StreamingResponseReader{
-		reader:   reader,
-		provider: provider,
-		tenantID: tenantID,
-		estimate: estimate,
-		pricing:  pricing,
-		limiter:  limiter,
-		buffer:   make([]byte, 0, 4096),
+		reader:     reader,
+		parseUsage: parseUsage,
+		tenantID:   tenantID,
+		estimate:   estimate,
+		pricing:    pricing,
+		limiter:    limiter,
+		buffer:     make([]byte, 0, 4096),
 	}
 }
 
@@ -123,7 +125,7 @@ func (s *StreamingResponseReader) parseSSELine(line []byte) {
 		s.hasError = true
 	}
 
-	usage := parser.ParseTokenUsage(chunk, s.provider)
+	usage := s.parseUsage(chunk)
 	if usage.Found {
 		if usage.InputTokens > s.usage.InputTokens {
 			s.usage.InputTokens = usage.InputTokens
