@@ -12,8 +12,8 @@ import (
 
 	"agent-sentinel/internal/async"
 	"agent-sentinel/internal/providers"
+	"agent-sentinel/internal/ratelimit"
 	"agent-sentinel/internal/telemetry"
-	"agent-sentinel/ratelimit"
 )
 
 type TokenUsage = providers.TokenUsage

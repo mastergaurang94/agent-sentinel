@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"agent-sentinel/internal/providers"
+	"agent-sentinel/internal/ratelimit"
 	"agent-sentinel/internal/telemetry"
-	"agent-sentinel/ratelimit"
 )
 
 type ContextKey string

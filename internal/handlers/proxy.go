@@ -12,9 +12,9 @@ import (
 	"agent-sentinel/internal/async"
 	"agent-sentinel/internal/middleware"
 	"agent-sentinel/internal/providers"
+	"agent-sentinel/internal/ratelimit"
 	"agent-sentinel/internal/stream"
 	"agent-sentinel/internal/telemetry"
-	"agent-sentinel/ratelimit"
 )
 
 // CreateModifyResponse builds the proxy ModifyResponse handler for cost tracking.

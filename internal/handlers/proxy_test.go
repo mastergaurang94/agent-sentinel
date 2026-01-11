@@ -15,7 +15,7 @@ import (
 	"agent-sentinel/internal/async"
 	"agent-sentinel/internal/middleware"
 	"agent-sentinel/internal/providers"
-	"agent-sentinel/ratelimit"
+	"agent-sentinel/internal/ratelimit"
 )
 
 type fakeLimiter struct {

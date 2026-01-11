@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"agent-sentinel/internal/providers"
-	"agent-sentinel/ratelimit"
+	"agent-sentinel/internal/ratelimit"
 )
 
 type fakeProvider struct {

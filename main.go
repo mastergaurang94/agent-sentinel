@@ -20,8 +20,8 @@ import (
 	providerspkg "agent-sentinel/internal/providers"
 	"agent-sentinel/internal/providers/gemini"
 	"agent-sentinel/internal/providers/openai"
+	"agent-sentinel/internal/ratelimit"
 	"agent-sentinel/internal/telemetry"
-	"agent-sentinel/ratelimit"
 )
 
 func main() {

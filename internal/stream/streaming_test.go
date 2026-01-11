@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"agent-sentinel/internal/async"
-	"agent-sentinel/ratelimit"
+	"agent-sentinel/internal/ratelimit"
 )
 
 type fakeLimiter struct {
