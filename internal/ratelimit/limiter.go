@@ -34,6 +34,18 @@ type RateLimiter struct {
 	defaultLimit float64
 }
 
+var (
+	defaultRunScript = func(ctx context.Context, script *redis.Script, client redis.UniversalClient, keys []string, args ...any) (any, error) {
+		return script.Run(ctx, client, keys, args...).Result()
+	}
+	defaultRunScriptErr = func(ctx context.Context, script *redis.Script, client redis.UniversalClient, keys []string, args ...any) error {
+		return script.Run(ctx, client, keys, args...).Err()
+	}
+
+	runScript    = defaultRunScript
+	runScriptErr = defaultRunScriptErr
+)
+
 // NewRateLimiter creates a new rate limiter
 // Returns nil if Redis is not available (fail-open)
 func NewRateLimiter(redisClient *RedisClient) *RateLimiter {
@@ -158,8 +170,8 @@ func (r *RateLimiter) CheckLimitAndIncrement(ctx context.Context, tenantID strin
 	client := r.client.Client()
 	script := redis.NewScript(checkLimitAndIncrementLUA)
 	start := time.Now()
-	result, err := script.Run(ctx, client, []string{spendKey, limitKey},
-		estimatedCost, r.defaultLimit).Result()
+	result, err := runScript(ctx, script, client, []string{spendKey, limitKey},
+		estimatedCost, r.defaultLimit)
 
 	if err != nil {
 		telemetry.ObserveRedisLatency(ctx, "check_limit", r.client.Backend(), "error", time.Since(start), tenantID)
@@ -207,8 +219,8 @@ func (r *RateLimiter) AdjustCost(ctx context.Context, tenantID string, estimate,
 	script := redis.NewScript(adjustCostLUA)
 	start := time.Now()
 
-	err := script.Run(ctx, client, []string{spendKey},
-		estimate, actual).Err()
+	err := runScriptErr(ctx, script, client, []string{spendKey},
+		estimate, actual)
 
 	if err != nil {
 		telemetry.ObserveRedisLatency(ctx, "adjust_cost", r.client.Backend(), "error", time.Since(start), tenantID)
@@ -239,8 +251,8 @@ func (r *RateLimiter) RefundEstimate(ctx context.Context, tenantID string, estim
 
 	// Pass actual=0 to trigger refund logic (0 - estimate = -estimate)
 	start := time.Now()
-	err := script.Run(ctx, client, []string{spendKey},
-		estimate, 0.0).Err()
+	err := runScriptErr(ctx, script, client, []string{spendKey},
+		estimate, 0.0)
 
 	if err != nil {
 		telemetry.ObserveRedisLatency(ctx, "refund_estimate", r.client.Backend(), "error", time.Since(start), tenantID)
