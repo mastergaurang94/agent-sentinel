@@ -18,6 +18,11 @@ import (
 
 type TokenUsage = providers.TokenUsage
 
+type costAdjuster interface {
+	AdjustCost(ctx context.Context, tenantID string, estimate, actual float64) error
+	RefundEstimate(ctx context.Context, tenantID string, estimate float64) error
+}
+
 // IsStreamingResponse checks response headers for streaming content types.
 func IsStreamingResponse(resp *http.Response) bool {
 	contentType := resp.Header.Get("Content-Type")
@@ -35,7 +40,7 @@ type StreamingResponseReader struct {
 	tenantID   string
 	estimate   float64
 	pricing    ratelimit.Pricing
-	limiter    *ratelimit.RateLimiter
+	limiter    costAdjuster
 	provider   string
 	model      string
 	startTime  time.Time
@@ -43,7 +48,7 @@ type StreamingResponseReader struct {
 	finalized  bool
 }
 
-func NewStreamingResponseReader(reader io.ReadCloser, parseUsage func(map[string]any) providers.TokenUsage, tenantID string, estimate float64, pricing ratelimit.Pricing, limiter *ratelimit.RateLimiter, provider string, model string, startTime time.Time) *StreamingResponseReader {
+func NewStreamingResponseReader(reader io.ReadCloser, parseUsage func(map[string]any) providers.TokenUsage, tenantID string, estimate float64, pricing ratelimit.Pricing, limiter costAdjuster, provider string, model string, startTime time.Time) *StreamingResponseReader {
 	return &StreamingResponseReader{
 		reader:     reader,
 		parseUsage: parseUsage,

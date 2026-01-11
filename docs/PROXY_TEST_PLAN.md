@@ -11,7 +11,6 @@
 
 - **Async / runtime**
   - Async queue depth: semaphore acquire/release behavior; QueueDepth reflects active goroutines.
-  - Telemetry helpers: meter/tracer init no-ops vs. real; counters/histograms invoked without panic.
 
 - **Rate limit package**
   - Allow/deny decisions with Redis responses (mock client): spending against quotas; fail-open when Redis unavailable; cost estimate latency measured; refunds increment.
