@@ -10,6 +10,7 @@ import (
 var (
 	asyncSemaphore  chan struct{}
 	asyncCompletion chan struct{}
+	RunOverride     func(fn func())
 )
 
 // Init initializes bounded async execution primitives.
@@ -29,6 +30,10 @@ func Init() {
 
 // Run executes fn with bounded concurrency and tracks completion.
 func Run(fn func()) {
+	if RunOverride != nil {
+		RunOverride(fn)
+		return
+	}
 	go func() {
 		asyncSemaphore <- struct{}{}
 

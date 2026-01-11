@@ -18,7 +18,20 @@ import (
 )
 
 // CreateModifyResponse builds the proxy ModifyResponse handler for cost tracking.
-func CreateModifyResponse(limiter *ratelimit.RateLimiter, provider providers.Provider) func(*http.Response) error {
+type costLimiter interface {
+	ratelimitAdjuster
+	ratelimitRefund
+}
+
+type ratelimitAdjuster interface {
+	AdjustCost(ctx context.Context, tenantID string, estimate, actual float64) error
+}
+
+type ratelimitRefund interface {
+	RefundEstimate(ctx context.Context, tenantID string, estimate float64) error
+}
+
+func CreateModifyResponse(limiter costLimiter, provider providers.Provider) func(*http.Response) error {
 	return func(resp *http.Response) error {
 		if limiter == nil {
 			return nil
@@ -117,7 +130,7 @@ func hasErrorInResponse(data map[string]any) bool {
 }
 
 // CreateErrorHandler builds the proxy error handler.
-func CreateErrorHandler(limiter *ratelimit.RateLimiter) func(http.ResponseWriter, *http.Request, error) {
+func CreateErrorHandler(limiter ratelimitRefund) func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, r *http.Request, proxyErr error) {
 		ctx := r.Context()
 		tenantID, _ := ctx.Value(middleware.ContextKeyTenantID).(string)
