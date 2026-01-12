@@ -40,3 +40,14 @@ func TestWait(t *testing.T) {
 		t.Fatalf("expected all tasks complete, got remaining %d", remaining)
 	}
 }
+
+func TestWaitContextCancel(t *testing.T) {
+	Init()
+	Run(func() { time.Sleep(100 * time.Millisecond) })
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	remaining := Wait(ctx)
+	if remaining != 0 {
+		t.Fatalf("expected all tasks complete, got remaining %d", remaining)
+	}
+}

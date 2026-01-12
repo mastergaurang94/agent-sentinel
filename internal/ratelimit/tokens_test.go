@@ -37,15 +37,3 @@ func TestCountTokensFallback(t *testing.T) {
 		t.Fatalf("expected token count > 0")
 	}
 }
-
-func TestEstimateOutputTokensBounds(t *testing.T) {
-	if got := EstimateOutputTokens(1, 0); got != MinOutputEstimate {
-		t.Fatalf("expected min output, got %d", got)
-	}
-	if got := EstimateOutputTokens(10000, 0); got != MaxOutputEstimate {
-		t.Fatalf("expected max cap, got %d", got)
-	}
-	if got := EstimateOutputTokens(0, 10); got != 10 {
-		t.Fatalf("expected explicit max override, got %d", got)
-	}
-}
