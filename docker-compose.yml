@@ -45,7 +45,7 @@ services:
       - LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS=${LOOP_EMBEDDING_SIDECAR_TIMEOUT_MS:-50}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-otel-collector:4317}
     volumes:
-      - sockets:/sockets
+      - ./.sockets:/sockets
     depends_on:
       redis-embedding:
         condition: service_started
@@ -80,7 +80,7 @@ services:
         condition: service_started
     restart: unless-stopped
     volumes:
-      - sockets:/sockets
+      - ./.sockets:/sockets
 
   otel-collector:
     image: otel/opentelemetry-collector:0.104.0
@@ -95,5 +95,4 @@ services:
 volumes:
   redis-data:
   redis-embedding-data:
-  sockets:
 

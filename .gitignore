@@ -36,3 +36,5 @@ embedding-sidecar/models/*.onnx
 # Docker
 .docker/
 
+# Sockets
+.sockets/
