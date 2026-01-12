@@ -1,6 +1,17 @@
 # Agent Sentinel
 
-Agent Sentinel is a high-performance reverse proxy for LLM agents. It sits in front of Gemini or OpenAI, enforcing spend limits, tracking cost, handling streaming-aware accounting, and detecting agentic loops via a dedicated embedding sidecar. OpenTelemetry tracing/metrics are wired in for both proxy and sidecar.
+Agent Sentinel is a high-performance reverse proxy designed to govern LLM agents. It provides financial governance by enforcing multi-tenant spend limits and detecting semantic loops. 
+
+More specifically, it sits in front of Gemini or OpenAI, enforcing spend limits, tracking cost, handling streaming-aware accounting, and detecting agentic loops via a dedicated embedding sidecar. OpenTelemetry tracing/metrics are wired in for both proxy and sidecar.
+
+## Key Architectural Decisions
+- Decoupled Intelligence: Unlike monolithic proxies, Agent Sentinel offloads heavy vector inference to a gRPC sidecar communicating over Unix Domain Sockets (UDS). This prevents ONNX runtime overhead from competing with the proxy's networking stack.
+
+- Semantic Guardrails: Traditional rate limiters fail when agents repeat logic with different words. We use Semantic Similarity (KNN) search via Redis VSS to detect behavioral loops and inject system hints to break the cycle.
+
+- Streaming-Aware Accounting: Built for the modern LLM stack, handling TTFT (Time to First Token) metrics and automated refunds/adjustments for partial stream failures.
+
+- Resiliency (Fail-Open): Implements a 350ms P99 latency budget for guardrails. If the sidecar or vector store times out, the system degrades gracefully to preserve agent availability while maintaining financial rails.
 
 ## What’s included
 - Proxy: rate limiting (Redis), cost tracking/refunds, TTFT/stream duration metrics, goroutine/runtime gauges, provider HTTP tracing/metrics.
