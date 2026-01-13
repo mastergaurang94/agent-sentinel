@@ -4,6 +4,9 @@ Agent Sentinel is a high-performance reverse proxy designed to govern LLM agents
 
 More specifically, it sits in front of Gemini or OpenAI, enforcing spend limits, tracking cost, handling streaming-aware accounting, and detecting agentic loops via a dedicated embedding sidecar. OpenTelemetry tracing/metrics are wired in for both proxy and sidecar.
 
+## 3-minute walkthrough
+[Watch on YouTube](https://youtu.be/EPLVBTh_kHI)
+
 ## Key Architectural Decisions
 - Decoupled Intelligence: Unlike monolithic proxies, Agent Sentinel offloads heavy vector inference to a gRPC sidecar communicating over Unix Domain Sockets (UDS). This prevents ONNX runtime overhead from competing with the proxy's networking stack.
 
