@@ -22,17 +22,17 @@ func Init() {
 
 func ensureInit() {
 	initOnce.Do(func() {
-	limit := 10000
-	if limitStr := os.Getenv("ASYNC_OP_LIMIT"); limitStr != "" {
-		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
-			limit = parsed
+		limit := 10000
+		if limitStr := os.Getenv("ASYNC_OP_LIMIT"); limitStr != "" {
+			if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+				limit = parsed
+			}
 		}
-	}
 
-	asyncSemaphore = make(chan struct{}, limit)
-	asyncCompletion = make(chan struct{}, limit*2)
+		asyncSemaphore = make(chan struct{}, limit)
+		asyncCompletion = make(chan struct{}, limit*2)
 
-	slog.Info("Async operations initialized", "concurrent_limit", limit)
+		slog.Info("Async operations initialized", "concurrent_limit", limit)
 	})
 }
 
