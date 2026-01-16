@@ -1,4 +1,5 @@
 # Agent Sentinel
+[![CI](https://github.com/mastergaurang94/agent-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/mastergaurang94/agent-sentinel/actions/workflows/ci.yml)
 
 Agent Sentinel is a high-performance reverse proxy designed to govern LLM agents. It provides financial governance by enforcing multi-tenant spend limits and detecting semantic loops. 
 
