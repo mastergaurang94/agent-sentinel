@@ -111,7 +111,6 @@ func initRateLimiter() *ratelimit.RateLimiter {
 	return rl
 }
 
-
 // initLoopClient initializes the loop detection gRPC client.
 // Returns nil if initialization fails (fail-open).
 func initLoopClient() *loopdetect.Client {
@@ -136,7 +135,6 @@ func initLoopClient() *loopdetect.Client {
 	slog.Info("Loop detection enabled", "uds", loopUDS, "timeout_ms", loopTimeoutMs)
 	return client
 }
-
 
 func main() {
 	config.ConfigureLogging()
