@@ -5,27 +5,35 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"sync"
 )
 
 var (
 	asyncSemaphore  chan struct{}
 	asyncCompletion chan struct{}
 	RunOverride     func(fn func())
+	initOnce        sync.Once
 )
 
 // Init initializes bounded async execution primitives.
 func Init() {
-	limit := 10000
-	if limitStr := os.Getenv("ASYNC_OP_LIMIT"); limitStr != "" {
-		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
-			limit = parsed
+	ensureInit()
+}
+
+func ensureInit() {
+	initOnce.Do(func() {
+		limit := 10000
+		if limitStr := os.Getenv("ASYNC_OP_LIMIT"); limitStr != "" {
+			if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+				limit = parsed
+			}
 		}
-	}
 
-	asyncSemaphore = make(chan struct{}, limit)
-	asyncCompletion = make(chan struct{}, limit*2)
+		asyncSemaphore = make(chan struct{}, limit)
+		asyncCompletion = make(chan struct{}, limit*2)
 
-	slog.Info("Async operations initialized", "concurrent_limit", limit)
+		slog.Info("Async operations initialized", "concurrent_limit", limit)
+	})
 }
 
 // Run executes fn with bounded concurrency and tracks completion.
@@ -34,6 +42,7 @@ func Run(fn func()) {
 		RunOverride(fn)
 		return
 	}
+	ensureInit()
 	go func() {
 		asyncSemaphore <- struct{}{}
 
@@ -51,6 +60,7 @@ func Run(fn func()) {
 
 // Wait drains completions for inflight work or until ctx expires.
 func Wait(ctx context.Context) int {
+	ensureInit()
 	inFlight := len(asyncSemaphore)
 	if inFlight == 0 {
 		return 0
@@ -71,8 +81,6 @@ func Wait(ctx context.Context) int {
 
 // QueueDepth returns current in-flight async operations.
 func QueueDepth() int64 {
-	if asyncSemaphore == nil {
-		return 0
-	}
+	ensureInit()
 	return int64(len(asyncSemaphore))
 }

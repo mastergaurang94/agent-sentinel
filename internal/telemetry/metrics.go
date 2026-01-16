@@ -105,9 +105,7 @@ func RegisterRuntimeGauges(queueDepthFn func() int64) {
 
 // RecordRateLimitRequest increments the rate limit request counter with outcome tags.
 func RecordRateLimitRequest(ctx context.Context, result, reason, provider, model, tenantID string) {
-	if rateLimitRequests == nil {
-		initMeter()
-	}
+	initMeter()
 	if rateLimitRequests == nil {
 		return
 	}
@@ -133,9 +131,7 @@ func RecordRateLimitRequest(ctx context.Context, result, reason, provider, model
 
 // ObserveRedisLatency records Redis operation latency in milliseconds.
 func ObserveRedisLatency(ctx context.Context, op, backend, result string, d time.Duration, tenantID string) {
-	if redisLatencyMs == nil {
-		initMeter()
-	}
+	initMeter()
 	if redisLatencyMs == nil {
 		return
 	}
@@ -156,9 +152,7 @@ func ObserveRedisLatency(ctx context.Context, op, backend, result string, d time
 
 // IncRedisError increments the Redis error counter.
 func IncRedisError(ctx context.Context, op, backend, tenantID string) {
-	if redisErrors == nil {
-		initMeter()
-	}
+	initMeter()
 	if redisErrors == nil {
 		return
 	}
@@ -178,9 +172,7 @@ func IncRedisError(ctx context.Context, op, backend, tenantID string) {
 
 // ObserveEstimateLatency records latency for token estimation.
 func ObserveEstimateLatency(ctx context.Context, provider, model, tenantID string, d time.Duration) {
-	if estimateLatencyMs == nil {
-		initMeter()
-	}
+	initMeter()
 	if estimateLatencyMs == nil {
 		return
 	}
@@ -201,9 +193,7 @@ func ObserveEstimateLatency(ctx context.Context, provider, model, tenantID strin
 
 // ObserveCostDelta records the difference between actual and estimated cost.
 func ObserveCostDelta(ctx context.Context, provider, model, tenantID string, delta float64) {
-	if costDeltaUSD == nil {
-		initMeter()
-	}
+	initMeter()
 	if costDeltaUSD == nil {
 		return
 	}
@@ -224,9 +214,7 @@ func ObserveCostDelta(ctx context.Context, provider, model, tenantID string, del
 
 // IncRefund increments the refund counter with a reason label.
 func IncRefund(ctx context.Context, provider, model, tenantID, reason string) {
-	if refundCounter == nil {
-		initMeter()
-	}
+	initMeter()
 	if refundCounter == nil {
 		return
 	}
@@ -250,9 +238,7 @@ func IncRefund(ctx context.Context, provider, model, tenantID, reason string) {
 
 // ObserveProviderHTTP records provider HTTP latency and errors with status/result attributes.
 func ObserveProviderHTTP(ctx context.Context, provider, model string, status int, result string, d time.Duration) {
-	if providerLatencyMs == nil {
-		initMeter()
-	}
+	initMeter()
 	if providerLatencyMs == nil {
 		return
 	}
@@ -276,9 +262,7 @@ func ObserveProviderHTTP(ctx context.Context, provider, model string, status int
 
 // ObserveTTFT records time-to-first-token latency for streaming responses.
 func ObserveTTFT(ctx context.Context, provider, model, tenantID string, d time.Duration) {
-	if ttftMs == nil {
-		initMeter()
-	}
+	initMeter()
 	if ttftMs == nil {
 		return
 	}
@@ -299,9 +283,7 @@ func ObserveTTFT(ctx context.Context, provider, model, tenantID string, d time.D
 
 // ObserveStreamDuration records total streaming duration from request start to stream end.
 func ObserveStreamDuration(ctx context.Context, provider, model, tenantID string, d time.Duration) {
-	if streamDurationMs == nil {
-		initMeter()
-	}
+	initMeter()
 	if streamDurationMs == nil {
 		return
 	}
