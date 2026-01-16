@@ -53,15 +53,54 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
+      - name: Prepare sidecar socket dir
+        run: mkdir -p .sockets
+
+      - name: Build embedding sidecar image
+        run: |
+          docker build \
+            --build-arg MODEL_URL=${MODEL_URL} \
+            --build-arg MODEL_SHA256=${MODEL_SHA256} \
+            --build-arg VOCAB_URL=${VOCAB_URL} \
+            embedding-sidecar \
+            -t embedding-sidecar:ci
+
+      - name: Start embedding sidecar (UDS)
+        run: |
+          docker run -d --name embedding-sidecar \
+            --network host \
+            -v "${GITHUB_WORKSPACE}/.sockets:/sockets" \
+            -e REDIS_URL=redis://localhost:6379 \
+            -e LOOP_EMBEDDING_SIDECAR_UDS=/sockets/embedding-sidecar.sock \
+            embedding-sidecar:ci
+
+      - name: Wait for sidecar socket
+        run: |
+          for i in {1..50}; do
+            if [ -S .sockets/embedding-sidecar.sock ]; then
+              exit 0
+            fi
+            sleep 0.2
+          done
+          echo "Sidecar socket not ready" >&2
+          ls -la .sockets || true
+          exit 1
+
       - name: Go test
         env:
           REDIS_URL_INTEGRATION: redis://localhost:6379
+          RUN_FULLSTACK_SIDECAR: "1"
+          LOOP_EMBEDDING_SIDECAR_UDS: ${{ github.workspace }}/.sockets/embedding-sidecar.sock
         run: go test ./...
 
       - name: Go test (race, proxy packages)
         env:
           REDIS_URL_INTEGRATION: redis://localhost:6379
         run: go test -race ./internal/...
+
+      - name: Stop embedding sidecar
+        if: always()
+        run: docker rm -f embedding-sidecar
 
   docker-build:
     runs-on: ubuntu-latest
