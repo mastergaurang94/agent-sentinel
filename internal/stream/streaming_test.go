@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 )
 
 type fakeLimiter struct {
+	mu             sync.Mutex
 	adjustEstimate float64
 	adjustActual   float64
 	refundEstimate float64
@@ -20,8 +22,10 @@ type fakeLimiter struct {
 }
 
 func (f *fakeLimiter) AdjustCost(ctx context.Context, tenantID string, estimate, actual float64) error {
+	f.mu.Lock()
 	f.adjustEstimate = estimate
 	f.adjustActual = actual
+	f.mu.Unlock()
 	if f.adjustCh != nil {
 		select {
 		case f.adjustCh <- struct{}{}:
@@ -32,7 +36,9 @@ func (f *fakeLimiter) AdjustCost(ctx context.Context, tenantID string, estimate,
 }
 
 func (f *fakeLimiter) RefundEstimate(ctx context.Context, tenantID string, estimate float64) error {
+	f.mu.Lock()
 	f.refundEstimate = estimate
+	f.mu.Unlock()
 	if f.refundCh != nil {
 		select {
 		case f.refundCh <- struct{}{}:
@@ -70,9 +76,12 @@ func TestStreamingAdjustsCostOnUsage(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("timed out waiting for adjust")
 	}
+	lim.mu.Lock()
 	if lim.adjustEstimate != 1.0 || lim.adjustActual == 0 {
+		lim.mu.Unlock()
 		t.Fatalf("expected adjust called, got estimate=%v actual=%v", lim.adjustEstimate, lim.adjustActual)
 	}
+	lim.mu.Unlock()
 }
 
 func TestStreamingRefundsOnErrorNoUsage(t *testing.T) {
@@ -94,7 +103,10 @@ func TestStreamingRefundsOnErrorNoUsage(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("timed out waiting for refund")
 	}
+	lim.mu.Lock()
 	if lim.refundEstimate != 2.0 {
+		lim.mu.Unlock()
 		t.Fatalf("expected refund 2.0, got %v", lim.refundEstimate)
 	}
+	lim.mu.Unlock()
 }
