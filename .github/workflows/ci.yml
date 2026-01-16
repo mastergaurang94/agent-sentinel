@@ -14,6 +14,16 @@ env:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    services:
+      redis-stack:
+        image: redis/redis-stack:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,10 +54,14 @@ jobs:
         run: go vet ./...
 
       - name: Go test
+        env:
+          REDIS_URL_INTEGRATION: redis://localhost:6379
         run: go test ./...
 
       - name: Go test (race, proxy packages)
-        run: go test -race ./internal/... ./ratelimit/...
+        env:
+          REDIS_URL_INTEGRATION: redis://localhost:6379
+        run: go test -race ./internal/...
 
   docker-build:
     runs-on: ubuntu-latest
