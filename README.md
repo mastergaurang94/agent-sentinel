@@ -27,7 +27,8 @@ More specifically, it sits in front of Gemini or OpenAI, enforcing spend limits,
 ```
 GEMINI_API_KEY=...
 OPENAI_API_KEY=...
-TARGET_API=gemini   # or "openai"
+ANTHROPIC_API_KEY=...
+TARGET_API=gemini   # or "openai" or "anthropic"
 MODEL_URL=https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx
 MODEL_SHA256=6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452
 ```
@@ -37,12 +38,30 @@ MODEL_SHA256=6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452
 docker compose up -d --build
 ```
 
-3) Call the proxy (example):
-```
-curl -X POST http://localhost:8080/v1beta/models/gemini-pro-flash:generateContent \
+3) Call the proxy (examples):
+
+**Gemini:**
+```bash
+curl -X POST http://localhost:8080/v1beta/models/gemini-2.0-flash:generateContent \
   -H "Content-Type: application/json" \
   -H "X-Tenant-ID: demo-tenant" \
   -d '{ "contents": [{ "parts": [{ "text": "Say hello in 3 languages" }] }] }'
+```
+
+**OpenAI:**
+```bash
+curl -X POST http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: demo-tenant" \
+  -d '{ "model": "gpt-4o-mini", "messages": [{ "role": "user", "content": "Say hello in 3 languages" }] }'
+```
+
+**Anthropic:**
+```bash
+curl -X POST http://localhost:8080/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: demo-tenant" \
+  -d '{ "model": "claude-3-5-haiku-latest", "max_tokens": 1024, "messages": [{ "role": "user", "content": "Say hello in 3 languages" }] }'
 ```
 
 ## Testing

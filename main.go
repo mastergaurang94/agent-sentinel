@@ -18,6 +18,7 @@ import (
 	"agent-sentinel/internal/loopdetect"
 	"agent-sentinel/internal/middleware"
 	providerspkg "agent-sentinel/internal/providers"
+	"agent-sentinel/internal/providers/anthropic"
 	"agent-sentinel/internal/providers/gemini"
 	"agent-sentinel/internal/providers/openai"
 	"agent-sentinel/internal/ratelimit"
@@ -51,9 +52,11 @@ func main() {
 	targetAPI := strings.ToLower(os.Getenv("TARGET_API"))
 	geminiKey := os.Getenv("GEMINI_API_KEY")
 	openAIKey := os.Getenv("OPENAI_API_KEY")
+	anthropicKey := os.Getenv("ANTHROPIC_API_KEY")
 
 	var provider providerspkg.Provider
-	if targetAPI == "openai" || (targetAPI == "" && openAIKey != "" && geminiKey == "") {
+	switch targetAPI {
+	case "openai":
 		if openAIKey == "" {
 			slog.Error("OPENAI_API_KEY environment variable is not set")
 			os.Exit(1)
@@ -64,7 +67,18 @@ func main() {
 			os.Exit(1)
 		}
 		provider = p
-	} else {
+	case "anthropic":
+		if anthropicKey == "" {
+			slog.Error("ANTHROPIC_API_KEY environment variable is not set")
+			os.Exit(1)
+		}
+		p, err := anthropic.New(anthropicKey)
+		if err != nil {
+			slog.Error("Failed to init Anthropic provider", "error", err)
+			os.Exit(1)
+		}
+		provider = p
+	case "gemini":
 		if geminiKey == "" {
 			slog.Error("GEMINI_API_KEY environment variable is not set")
 			os.Exit(1)
@@ -75,6 +89,26 @@ func main() {
 			os.Exit(1)
 		}
 		provider = p
+	default:
+		// Auto-detect based on available keys (backwards compatible)
+		if openAIKey != "" && geminiKey == "" && anthropicKey == "" {
+			p, err := openai.New(openAIKey)
+			if err != nil {
+				slog.Error("Failed to init OpenAI provider", "error", err)
+				os.Exit(1)
+			}
+			provider = p
+		} else if geminiKey != "" {
+			p, err := gemini.New(geminiKey)
+			if err != nil {
+				slog.Error("Failed to init Gemini provider", "error", err)
+				os.Exit(1)
+			}
+			provider = p
+		} else {
+			slog.Error("TARGET_API not set and no API key detected. Set TARGET_API to 'openai', 'gemini', or 'anthropic'")
+			os.Exit(1)
+		}
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(provider.BaseURL())

@@ -20,6 +20,64 @@ type ProviderPricing map[string]ModelPricing
 //   - Gemini: https://ai.google.dev/gemini-api/docs/pricing
 func GetPricing() ProviderPricing {
 	return ProviderPricing{
+		"anthropic": ModelPricing{
+			// Anthropic pricing per 1M tokens
+			// Source: https://www.anthropic.com/pricing (verified Jan 2026)
+
+			// Claude 4 series (latest as of 2026)
+			"claude-opus-4-5": {
+				InputPrice:  15.00,
+				OutputPrice: 75.00,
+			},
+			"claude-opus-4-5-20250220": {
+				InputPrice:  15.00,
+				OutputPrice: 75.00,
+			},
+			"claude-sonnet-4-5": {
+				InputPrice:  3.00,
+				OutputPrice: 15.00,
+			},
+			"claude-sonnet-4-5-20250220": {
+				InputPrice:  3.00,
+				OutputPrice: 15.00,
+			},
+
+			// Claude 3.5 series
+			"claude-3-5-sonnet-20241022": {
+				InputPrice:  3.00,
+				OutputPrice: 15.00,
+			},
+			"claude-3-5-sonnet-latest": {
+				InputPrice:  3.00,
+				OutputPrice: 15.00,
+			},
+			"claude-3-5-haiku-20241022": {
+				InputPrice:  0.80,
+				OutputPrice: 4.00,
+			},
+			"claude-3-5-haiku-latest": {
+				InputPrice:  0.80,
+				OutputPrice: 4.00,
+			},
+
+			// Claude 3 series (legacy but available)
+			"claude-3-opus-20240229": {
+				InputPrice:  15.00,
+				OutputPrice: 75.00,
+			},
+			"claude-3-opus-latest": {
+				InputPrice:  15.00,
+				OutputPrice: 75.00,
+			},
+			"claude-3-sonnet-20240229": {
+				InputPrice:  3.00,
+				OutputPrice: 15.00,
+			},
+			"claude-3-haiku-20240307": {
+				InputPrice:  0.25,
+				OutputPrice: 1.25,
+			},
+		},
 		"openai": ModelPricing{
 			// OpenAI pricing per 1M tokens
 			// Source: https://openai.com/api/pricing (verified Jan 2026)
@@ -271,6 +329,12 @@ func DefaultPricing(provider string) Pricing {
 		return Pricing{
 			InputPrice:  1.25,
 			OutputPrice: 5.00,
+		}
+	case "anthropic":
+		// Conservative default based on Claude 3.5 Sonnet
+		return Pricing{
+			InputPrice:  3.00,
+			OutputPrice: 15.00,
 		}
 	default:
 		// Reasonable fallback based on GPT-4o pricing
