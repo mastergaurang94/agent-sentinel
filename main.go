@@ -41,11 +41,11 @@ func initProvider() providers.Provider {
 		return mustInitGemini(geminiKey)
 	default:
 		// Auto-detect based on available keys (backwards compatible)
-		if openAIKey != "" && geminiKey == "" && anthropicKey == "" {
-			return mustInitOpenAI(openAIKey)
-		}
 		if geminiKey != "" {
 			return mustInitGemini(geminiKey)
+		}
+		if openAIKey != "" && anthropicKey == "" {
+			return mustInitOpenAI(openAIKey)
 		}
 		slog.Error("TARGET_API not set and no API key detected. Set TARGET_API to 'openai', 'gemini', or 'anthropic'")
 		os.Exit(1)
