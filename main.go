@@ -111,14 +111,6 @@ func initRateLimiter() *ratelimit.RateLimiter {
 	return rl
 }
 
-// asRateLimiterInterface converts a *ratelimit.RateLimiter to middleware.RateLimiter interface.
-// Returns nil interface if the pointer is nil (avoids Go's nil interface gotcha).
-func asRateLimiterInterface(rl *ratelimit.RateLimiter) middleware.RateLimiter {
-	if rl == nil {
-		return nil
-	}
-	return rl
-}
 
 // initLoopClient initializes the loop detection gRPC client.
 // Returns nil if initialization fails (fail-open).
@@ -145,14 +137,6 @@ func initLoopClient() *loopdetect.Client {
 	return client
 }
 
-// asLoopClientInterface converts a *loopdetect.Client to middleware.LoopClient interface.
-// Returns nil interface if the pointer is nil (avoids Go's nil interface gotcha).
-func asLoopClientInterface(client *loopdetect.Client) middleware.LoopClient {
-	if client == nil {
-		return nil
-	}
-	return client
-}
 
 func main() {
 	config.ConfigureLogging()
@@ -194,8 +178,12 @@ func main() {
 	// Build middleware chain (order: tracing -> rate limiting -> loop detection -> logging -> proxy)
 	var handler http.Handler = proxy
 	handler = middleware.Logging(provider, handler)
-	handler = middleware.LoopDetection(asLoopClientInterface(loopClient), provider, rateLimitHeader, loopHint)(handler)
-	handler = middleware.RateLimiting(asRateLimiterInterface(rateLimiter), provider, rateLimitHeader)(handler)
+	if loopClient != nil {
+		handler = middleware.LoopDetection(loopClient, provider, rateLimitHeader, loopHint)(handler)
+	}
+	if rateLimiter != nil {
+		handler = middleware.RateLimiting(rateLimiter, provider, rateLimitHeader)(handler)
+	}
 	handler = telemetry.Middleware(provider, handler)
 
 	// Start server
